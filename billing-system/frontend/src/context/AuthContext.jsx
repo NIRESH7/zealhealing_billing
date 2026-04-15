@@ -33,13 +33,26 @@ export const AuthProvider = ({ children }) => {
     setUser({ username, role: data.role });
   };
 
+  const register = async (username, password) => {
+    // Backend expects {username, password, role} for signup (content-type: application/json or similar)
+    // Looking at backend/routers/auth.py, /signup expects a UserCreate JSON.
+    const payload = {
+      username: username,
+      password: password,
+      role: 'staff' // Default role for new registrations
+    };
+    await api.post('/auth/signup', payload);
+    // Automatically log in after registration
+    await login(username, password);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

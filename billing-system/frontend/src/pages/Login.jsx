@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, ShieldCheck, User, Lock, Eye, EyeOff, ChevronRight } from 'lucide-react';
 
 export default function Login() {
-  const { login } = useContext(AuthContext);
+  const { login, register } = useContext(AuthContext);
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,10 +19,14 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      await login(username, password);
+      if (isRegister) {
+        await register(username, password);
+      } else {
+        await login(username, password);
+      }
       navigate('/');
     } catch (err) {
-      setError('The username or password you entered is incorrect.');
+      setError(isRegister ? 'Registration failed. Username/mail might exist.' : 'The username or password you entered is incorrect.');
     } finally {
       setLoading(false);
     }
@@ -51,7 +56,7 @@ export default function Login() {
             {/* Username Field */}
             <div className="space-y-2">
               <label className="text-[13px] font-bold text-slate-700 ml-1 uppercase tracking-wider">
-                Staff ID / Username
+                {isRegister ? "Mail ID" : "Staff ID / Username"}
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
@@ -62,7 +67,7 @@ export default function Login() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
+                  placeholder={isRegister ? "Enter your mail ID" : "Enter your username"}
                   className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all text-sm"
                 />
               </div>
@@ -113,7 +118,7 @@ export default function Login() {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  Connect to Portal
+                  {isRegister ? "Register Account" : "Connect to Portal"}
                   <ChevronRight className="w-4 h-4" />
                 </>
               )}
@@ -122,9 +127,22 @@ export default function Login() {
 
           {/* Additional Links */}
           <div className="mt-8 flex flex-col items-center gap-3">
-            <button className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest">
-              Forgot Credentials?
+            <button 
+              type="button" 
+              onClick={() => setIsRegister(!isRegister)}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors tracking-wide"
+            >
+              {isRegister ? "Already have an account? Login" : "Don't have an account? Register"}
             </button>
+            
+            {!isRegister && (
+              <button 
+                type="button"
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest mt-2"
+              >
+                Forgot Credentials?
+              </button>
+            )}
           </div>
         </div>
 
