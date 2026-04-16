@@ -32,6 +32,9 @@ class TransactionCreate(BaseModel):
     transaction_id: str
     amount: float
     product: str
+    date: Optional[str] = None
+    hsn_code: Optional[str] = None
+    qty: int = 1
 
 class TransactionDB(TransactionCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
@@ -39,6 +42,11 @@ class TransactionDB(TransactionCreate):
     status: str = "Pending" # Pending, Verified, Rejected
     invoice_url: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    is_duplicate: bool = False
+    gst_rate: float = 0
+    cgst: float = 0
+    sgst: float = 0
+    total_amount: float = 0
 
 class CustomerDB(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)

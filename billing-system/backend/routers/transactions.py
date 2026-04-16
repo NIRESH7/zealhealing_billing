@@ -1,7 +1,6 @@
 import io
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import List
-import pandas as pd
 from datetime import datetime
 from bson import ObjectId
 from database import get_db
@@ -11,6 +10,7 @@ from utils import generate_invoice_pdf, send_whatsapp_invoice
 import uuid
 import shutil
 import os
+import re
 
 router = APIRouter()
 
@@ -19,13 +19,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/manual")
 async def create_transaction_manual(transaction: TransactionCreate, db=Depends(get_db), current_user=Depends(get_current_user)):
-    # Create manual transaction
     tx_dict = transaction.model_dump()
     tx_dict["status"] = "Pending"
     tx_dict["timestamp"] = datetime.utcnow()
     tx_dict["added_by"] = current_user["username"]
     
-    # insert customer if not exist or update
     await db.customers.update_one(
         {"phone": tx_dict["phone"]},
         {"$set": {"name": tx_dict["name"]}, "$inc": {"total_spent": tx_dict["amount"], "total_transactions": 1}},
@@ -33,7 +31,6 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
     )
     
     result = await db.transactions.insert_one(tx_dict)
-    tx_dict["_id"] = result.inserted_id
     tx_dict["id"] = str(result.inserted_id)
     return tx_dict
 
@@ -44,116 +41,134 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
     
     contents = await file.read()
     try:
-        if file.filename.endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(contents))
-        else:
-            df = pd.read_excel(io.BytesIO(contents))
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
         
-        # Normalize columns: trim whitespace and handle case-insensitivity
-        df.columns = [str(c).strip() for c in df.columns]
-        col_map = {c.lower(): c for c in df.columns}
-        
-        required_cols = ["Name", "Phone", "Transaction ID", "Amount", "Product"]
-        mapped_cols = {}
-        
-        for req in required_cols:
-            found = False
-            # Check for exact case-insensitive match
-            if req.lower() in col_map:
-                mapped_cols[req] = col_map[req.lower()]
-                found = True
-            
-            if not found:
-                # Add some common variations
-                variations = {
-                    "Name": ["customer name", "customer", "full name"],
-                    "Phone": ["phone number", "mobile", "contact"],
-                    "Transaction ID": ["tx id", "txn id", "transactionid"],
-                    "Amount": ["price", "total", "cost", "amount paid"],
-                    "Product": ["item", "description", "product name", "course"],
-                    "Email": ["email address", "email id"]
-                }
-                for var in variations.get(req, []):
-                    if var in col_map:
-                        mapped_cols[req] = col_map[var]
-                        found = True
-                        break
-            
-            if not found:
-                found_cols = list(df.columns)
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Missing column: '{req}'. Found columns: {found_cols}. Please use the template for the correct format."
-                )
-        
-        df = df.dropna(how='all')
-        records = df.to_dict("records")
-        transactions = []
+        all_transactions = []
         batch_id = str(uuid.uuid4())
+        gst_map = {"9997": 5.0, "7103": 0.25, "7106": 3.0, "9983": 18.0}
         
-        for row in records:
-            # Handle optional email mapping
-            email_val = None
-            for e_var in ["email", "email address", "email id"]:
-                if e_var in col_map:
-                    val = row[col_map[e_var]]
-                    if pd.notna(val):
-                        email_val = str(val)
+        for sheet in wb.worksheets:
+            rows = list(sheet.iter_rows(values_only=False))
+            if not rows: continue
+            
+            # Use Static 0-5 Mirror Mapping as per user request
+            col_map = {"date": 0, "name": 1, "phone": 2, "transaction_id": 3, "amount": 4, "product": 5}
+            
+            # Find the first row that actually has data (to skip empty headers/logos)
+            start_idx = 0
+            for i, row in enumerate(rows):
+                if any(c.value for c in row):
+                    # Check if this looks like a header or data
+                    test_val = str(row[1].value or "").lower()
+                    if "name" in test_val or "customer" in test_val:
+                        start_idx = i + 1
+                    else:
+                        start_idx = i
                     break
 
-            raw_phone = str(row[mapped_cols["Phone"]])
-            if raw_phone.endswith('.0'):
-                raw_phone = raw_phone[:-2]
+            current_date = "-" # Sticky date initiation
+            
+            # PRE-SCAN for a date in the top of the sheet
+            for i in range(min(15, len(rows))):
+                for cell in rows[i]:
+                    if cell.value and hasattr(cell.value, "strftime"):
+                        current_date = cell.value.strftime('%d/%m/%y')
+                        break
+                    elif cell.value and re.match(r'^\d{1,2}/\d{1,2}/\d{2,4}', str(cell.value)):
+                        current_date = str(cell.value).strip()
+                        break
+                if current_date != "-": break
+
+            for row in rows[start_idx:]:
+                if not any(c.value for c in row): continue # Skip empty rows
                 
-            raw_amount = str(row[mapped_cols["Amount"]])
-            clean_amount = ''.join(c for c in raw_amount if c.isdigit() or c == '.')
-            amount_val = float(clean_amount) if clean_amount else 0.0
+                # 1. Capture Sticky Date (Column 0)
+                d_cell = row[col_map["date"]].value
+                if d_cell:
+                    if hasattr(d_cell, "strftime"):
+                        current_date = d_cell.strftime('%d/%m/%y')
+                    else:
+                        s_d = str(d_cell).strip()
+                        if re.match(r'^\d{1,2}/\d{1,2}/\d{2,4}', s_d):
+                            current_date = s_d
 
-            tx = {
-                "name": str(row[mapped_cols["Name"]]),
-                "phone": raw_phone,
-                "email": email_val,
-                "transaction_id": str(row[mapped_cols["Transaction ID"]]),
-                "amount": amount_val,
-                "product": str(row[mapped_cols["Product"]]),
-                "status": "Verified",   # Auto-verify on upload
-                "timestamp": datetime.utcnow(),
-                "added_by": current_user["username"],
-                "batch_id": batch_id
-            }
-            transactions.append(tx)
-            
-            # update customer
-            await db.customers.update_one(
-                {"phone": tx["phone"]},
-                {"$set": {"name": tx["name"]}, "$inc": {"total_spent": tx["amount"], "total_transactions": 1}},
-                upsert=True
-            )
-            
-        if transactions:
-            result = await db.transactions.insert_many(transactions)
-            inserted_ids = result.inserted_ids
-            
-            # Auto-generate invoices for all uploaded transactions
-            for i, tx in enumerate(transactions):
-                tx["_id"] = inserted_ids[i]
-                invoice_url = generate_invoice_pdf(tx)
-                await db.transactions.update_one(
-                    {"_id": inserted_ids[i]},
-                    {"$set": {"invoice_url": invoice_url}}
+                # 2. Extract Values using .value ONLY
+                raw_name = str(row[col_map["name"]].value or "").strip()
+                raw_phone = str(row[col_map["phone"]].value or "").strip()
+                raw_tx_id = str(row[col_map["transaction_id"]].value or "").strip()
+                raw_amt = str(row[col_map["amount"]].value or "0")
+                product = str(row[col_map["product"]].value or "").strip()
+
+                if not raw_name or raw_name.lower() in ["none", "nan", "total", "balance", "customer name"]:
+                    continue
+
+                # 3. Clean and Format
+                phone = "".join(re.findall(r'\d+', raw_phone))
+                if len(phone) > 12: phone = phone[:12]
+                if not phone: continue
+
+                numeric_amt = "".join(re.findall(r'[0-9.]+', raw_amt))
+                try:
+                    amount = float(numeric_amt) if numeric_amt else 0.0
+                except: amount = 0.0
+                if amount <= 0: continue
+
+                # Clean Transaction ID
+                first_id = raw_tx_id.split("\n")[0].split("\r")[0].strip()
+                clean_tx_id = "".join([c if c.isalnum() else "_" for c in first_id]).upper()[:30]
+                if not clean_tx_id or clean_tx_id.lower() in ["nan", "total"]: continue
+
+                # 4. HSN Logic (Invisible to user)
+                hsn = "9983"
+                p_lower = product.lower()
+                if "reiki" in p_lower: hsn = "9997"
+                elif any(w in p_lower for w in ["crystal", "bracelet", "tumble", "zibu", "pyramid", "selenite"]): hsn = "7103"
+                elif "silver" in p_lower: hsn = "7106"
+
+                rate = gst_map.get(hsn, 18.0)
+                existing = await db.transactions.find_one({"transaction_id": clean_tx_id})
+
+                # 5. Build Final Mirror Object
+                tx_obj = {
+                    "name": raw_name,
+                    "phone": phone,
+                    "transaction_id": clean_tx_id,
+                    "amount": amount, # Match Excel
+                    "product": product, # Match Excel
+                    "date": current_date, # Sticky Date Match
+                    "hsn_code": hsn,
+                    "gst_rate": rate,
+                    "total_amount": amount, # Mirror Mirror
+                    "excel_row_index": start_idx + i, # Preserve Order
+                    "is_duplicate": True if existing else False,
+                    "status": "Verified",
+                    "timestamp": datetime.utcnow(),
+                    "added_by": current_user["username"],
+                    "batch_id": batch_id
+                }
+                all_transactions.append(tx_obj)
+
+        if all_transactions:
+            result = await db.transactions.insert_many(all_transactions)
+            for i, tx in enumerate(all_transactions):
+                tx["_id"] = result.inserted_ids[i]
+                await db.customers.update_one(
+                    {"phone": tx["phone"]},
+                    {"$set": {"name": tx["name"]}, "$inc": {"total_spent": tx["amount"], "total_transactions": 1}},
+                    upsert=True
                 )
-            
-        return {"message": f"Successfully uploaded and generated bills for {len(transactions)} transactions", "batch_id": batch_id}
+                invoice_url = generate_invoice_pdf(tx)
+                await db.transactions.update_one({"_id": tx["_id"]}, {"$set": {"invoice_url": invoice_url}})
 
-        
+        return {"message": f"Processed {len(all_transactions)} transactions", "batch_id": batch_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/")
 async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, search: str = None, latest_batch_only: bool = False, db=Depends(get_db), current_user=Depends(get_current_user)):
     query = {}
-    if status and status != "All":
-        query["status"] = status
+    if status and status != "All": query["status"] = status
     if search:
         query["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},
@@ -161,98 +176,46 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
             {"transaction_id": {"$regex": search, "$options": "i"}},
             {"product": {"$regex": search, "$options": "i"}}
         ]
-        
     if latest_batch_only:
-        latest_tx = await db.transactions.find_one(sort=[("timestamp", -1)])
-        if latest_tx and "batch_id" in latest_tx:
-            query["batch_id"] = latest_tx["batch_id"]
+        latest = await db.transactions.find_one(sort=[("timestamp", -1)])
+        if latest: query["batch_id"] = latest.get("batch_id")
             
-    cursor = db.transactions.find(query).sort("timestamp", -1).skip(skip).limit(limit)
+    cursor = db.transactions.find(query).sort([("timestamp", -1), ("excel_row_index", 1)]).skip(skip).limit(limit)
     transactions = await cursor.to_list(length=limit)
     
-    # Safely serialize MongoDB objects
     serialized = []
     for tx in transactions:
         tx["id"] = str(tx["_id"])
-        del tx["_id"]  # Remove ObjectId which can't be serialized
-        # Convert datetime fields to ISO strings
+        del tx["_id"]
         if "timestamp" in tx and hasattr(tx["timestamp"], "isoformat"):
             tx["timestamp"] = tx["timestamp"].isoformat()
-        if "verified_at" in tx and hasattr(tx.get("verified_at"), "isoformat"):
-            tx["verified_at"] = tx["verified_at"].isoformat()
-        if "whatsapp_sent_at" in tx and hasattr(tx.get("whatsapp_sent_at"), "isoformat"):
-            tx["whatsapp_sent_at"] = tx["whatsapp_sent_at"].isoformat()
         serialized.append(tx)
         
     total = await db.transactions.count_documents(query)
     return {"total": total, "items": serialized}
 
+@router.delete("/{tx_id}")
+async def delete_transaction(tx_id: str, db=Depends(get_db)):
+    await db.transactions.delete_one({"_id": ObjectId(tx_id)})
+    return {"message": "Deleted"}
 
-@router.post("/{tx_id}/payment-proof")
-async def upload_payment_proof(tx_id: str, file: UploadFile = File(...), db=Depends(get_db), current_user=Depends(get_current_user)):
-    file_ext = file.filename.split('.')[-1]
-    file_name = f"{uuid.uuid4()}.{file_ext}"
-    file_path = os.path.join(UPLOAD_DIR, file_name)
-    
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    file_url = f"/uploads/{file_name}"
-    
-    result = await db.transactions.update_one(
-        {"_id": ObjectId(tx_id)},
-        {"$set": {"payment_proof": file_url}}
-    )
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found or proof already same")
-        
-    return {"message": "Payment proof uploaded", "url": file_url}
-
-@router.put("/{tx_id}/verify")
-async def verify_transaction(tx_id: str, payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
-    new_status = payload.get("status") # Verified or Rejected
-    if new_status not in ["Verified", "Rejected"]:
-        raise HTTPException(status_code=400, detail="Invalid status")
-        
-    result = await db.transactions.update_one(
-        {"_id": ObjectId(tx_id)},
-        {"$set": {"status": new_status, "verified_by": current_user["username"], "verified_at": datetime.utcnow()}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-        
-    return {"message": f"Transaction marked as {new_status}"}
+@router.post("/bulk-delete")
+async def bulk_delete(payload: dict, db=Depends(get_db)):
+    if payload.get("deleteAll"):
+        await db.transactions.delete_many({})
+    else:
+        ids = [ObjectId(i) for i in payload.get("ids", [])]
+        await db.transactions.delete_many({"_id": {"$in": ids}})
+    return {"message": "Deleted"}
 
 @router.post("/{tx_id}/generate-invoice")
-async def create_invoice(tx_id: str, db=Depends(get_db), current_user=Depends(get_current_user)):
+async def create_invoice(tx_id: str, db=Depends(get_db)):
     tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-        
-    invoice_url = generate_invoice_pdf(tx)
-    
-    await db.transactions.update_one(
-        {"_id": ObjectId(tx_id)},
-        {"$set": {"invoice_url": invoice_url}}
-    )
-    return {"message": "Invoice generated", "url": invoice_url}
+    url = generate_invoice_pdf(tx)
+    await db.transactions.update_one({"_id": ObjectId(tx_id)}, {"$set": {"invoice_url": url}})
+    return {"url": url}
 
 @router.post("/{tx_id}/send-whatsapp")
-async def send_whatsapp(tx_id: str, db=Depends(get_db), current_user=Depends(get_current_user)):
+async def send_whatsapp(tx_id: str, db=Depends(get_db)):
     tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-        
-    if not tx.get("invoice_url"):
-        raise HTTPException(status_code=400, detail="Invoice not generated yet")
-        
-    res = send_whatsapp_invoice(tx["phone"], tx["invoice_url"])
-    
-    if res.get("status") == "success":
-        await db.transactions.update_one(
-            {"_id": ObjectId(tx_id)},
-            {"$set": {"whatsapp_sent": True, "whatsapp_sent_at": datetime.utcnow()}}
-        )
-    
-    return res
+    return send_whatsapp_invoice(tx["phone"], tx["invoice_url"])

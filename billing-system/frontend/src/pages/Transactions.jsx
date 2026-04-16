@@ -1,417 +1,303 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../services/api';
-import { Search, FileText, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
+import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown } from 'lucide-react';
 
-// --- View ALL Bills Carousel Modal ---
-function ViewAllModal({ bills, onClose }) {
-  const [index, setIndex] = useState(0);
-  if (!bills || bills.length === 0) return null;
+// --- Simplified Edit Modal (SaaS Style) ---
+function EditModal({ tx, onClose, onSave }) {
+  const [formData, setFormData] = useState({ ...tx });
+  const [loading, setLoading] = useState(false);
 
-  const current = bills[index];
-  const url = `http://localhost:8000${current.invoice_url}`;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      {/* Modal */}
-      <div className="relative z-10 w-full max-w-5xl h-[92vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-primary/10 rounded-xl">
-              <FileText className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">{current.name}</p>
-              <p className="text-xs text-gray-500">
-                Bill {index + 1} of {bills.length} &nbsp;·&nbsp; ₹{Number(current.amount).toLocaleString('en-IN')}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Prev */}
-            <button
-              disabled={index === 0}
-              onClick={() => setIndex(i => i - 1)}
-              className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 disabled:opacity-30 transition-all"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            {/* Counter pills */}
-            <div className="flex gap-1 px-2">
-              {bills.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setIndex(i)}
-                  className={`w-2 h-2 rounded-full transition-all ${i === index ? 'bg-primary w-4' : 'bg-gray-300'}`}
-                />
-              ))}
-            </div>
-            {/* Next */}
-            <button
-              disabled={index === bills.length - 1}
-              onClick={() => setIndex(i => i + 1)}
-              className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 disabled:opacity-30 transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-            {/* Download current */}
-            <a
-              href={url}
-              download
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </a>
-            {/* Close */}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-        {/* PDF viewer */}
-        <div className="flex-1 bg-gray-100">
-          <iframe key={url} src={url} className="w-full h-full border-0" title="Invoice Preview" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Single Invoice Modal ---
-function InvoiceModal({ url, name, onClose }) {
-  if (!url) return null;
-  const fullUrl = url.startsWith('http') ? url : `http://localhost:8000${url}`;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-4xl h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-xl">
-              <FileText className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">{name || 'Invoice'}</p>
-              <p className="text-xs text-gray-500">PDF Document</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <a href={fullUrl} download className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm">
-              <Download className="w-4 h-4" />Download
-            </a>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 bg-gray-100">
-          <iframe src={fullUrl} className="w-full h-full border-0" title="Invoice Preview" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Status Badge ---
-const StatusBadge = ({ status }) => {
-  const styles = {
-    Pending:  'bg-yellow-100 text-yellow-800 border-yellow-200',
-    Verified: 'bg-green-100 text-green-800 border-green-200',
-    Rejected: 'bg-red-100 text-red-800 border-red-200',
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.put(`/transactions/${tx.id}`, formData);
+      onSave();
+    } catch (err) { alert('Update failed'); }
+    finally { setLoading(false); }
   };
+
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
-      {status}
-    </span>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-[4px]">
+      <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-none">Modify Entry</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ref ID: {tx.transaction_id || tx.id}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200/50 rounded-xl text-slate-400 transition-all"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="col-span-2">
+              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Customer Name</label>
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+            </div>
+            <div>
+              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Contact Identity</label>
+              <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+            </div>
+            <div>
+              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Revenue Status</label>
+              <input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Product / Memo</label>
+              <textarea value={formData.product} onChange={e => setFormData({...formData, product:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all resize-none" rows="2" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 text-[11px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">Discard</button>
+            <button type="submit" disabled={loading} className="px-6 py-2.5 text-[11px] font-black bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all uppercase tracking-widest disabled:opacity-50">
+              {loading ? 'Processing...' : 'Sync Updates'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
-};
+}
 
 export default function Transactions() {
-  const { searchQuery } = useOutletContext();
-  const [data, setData] = useState({ total: 0, items: [] });
+  const { user } = useOutletContext();
+  const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
-  // Sync global search with local search
-  useEffect(() => {
-    if (searchQuery !== undefined) {
-      setSearch(searchQuery);
-    }
-  }, [searchQuery]);
-
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [status, setStatus] = useState('All');
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(50);
   const [selected, setSelected] = useState([]);
-  const [singleBill, setSingleBill] = useState(null); // { url, name }
-  const [viewAllBills, setViewAllBills] = useState(null); // array of tx
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkWaLoading, setBulkWaLoading] = useState(false);
+  const [selectAllAll, setSelectAllAll] = useState(false);
+  const [latestBatchOnly, setLatestBatchOnly] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
+  const [singleBill, setSingleBill] = useState(null);
   const [generatingId, setGeneratingId] = useState(null);
-
-  useEffect(() => { fetchTransactions(); }, [search, statusFilter]);
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const { data: res } = await api.get('/transactions', { params: { search, status: statusFilter, latest_batch_only: true } });
-      setData(res);
-      setSelected([]);
+      const res = await api.get('/transactions/', {
+        params: { skip: page * pageSize, limit: pageSize, search, status, latest_batch_only: latestBatchOnly }
+      });
+      setData(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
-  // Checkbox logic
-  const allIds = data.items.map(t => t.id);
-  const allSelected = allIds.length > 0 && allIds.every(id => selected.includes(id));
-  const toggleSelectAll = () => setSelected(allSelected ? [] : allIds);
-  const toggleSelect = (id) =>
-    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  useEffect(() => { fetchTransactions(); }, [page, status, latestBatchOnly]);
 
-  // Generate invoice for single row
+  const handleSearch = (e) => { e.preventDefault(); setPage(0); fetchTransactions(); };
+  const toggleSelect = (id) => { setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); };
+  const toggleSelectAll = () => {
+    if (selected.length === data.items.length) { setSelected([]); setSelectAllAll(false); }
+    else { setSelected(data.items.map(i => i.id)); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Permanently delete ${selectAllAll ? data.total : selected.length} entries?`)) return;
+    try {
+      await api.post('/transactions/bulk-delete', { ids: selectAllAll ? [] : selected, deleteAll: selectAllAll, status, search, latest_batch_only: latestBatchOnly });
+      setSelected([]); setSelectAllAll(false); fetchTransactions();
+    } catch (err) { alert('Operation failed'); }
+  };
+
+  const handleWipeAll = async () => {
+    if (!window.confirm("CRITICAL: Wipe entire database?")) return;
+    try {
+      await api.post('/transactions/bulk-delete', { ids: [], deleteAll: true });
+      setSelected([]); setSelectAllAll(false); fetchTransactions();
+    } catch (err) { alert('Wipe failed'); }
+  };
+
   const generateInvoice = async (tx) => {
     setGeneratingId(tx.id);
     try {
       const res = await api.post(`/transactions/${tx.id}/generate-invoice`);
-      await fetchTransactions();
-      if (res.data?.url) setSingleBill({ url: `http://localhost:8000${res.data.url}`, name: tx.name });
-    } catch (err) { alert(err.response?.data?.detail || 'Error generating invoice'); }
+      setSingleBill({ url: `http://localhost:8000${res.data.url}`, name: tx.name });
+      fetchTransactions();
+    } catch (err) { alert('Failed to generate'); }
     finally { setGeneratingId(null); }
   };
 
-  // "View All Bills" for selected rows
-  const handleViewAll = async () => {
-    const selectedTxs = data.items.filter(t => selected.includes(t.id));
-    setBulkLoading(true);
-
-    // Generate any that don't have invoices yet
-    const updated = [...selectedTxs];
-    for (let i = 0; i < updated.length; i++) {
-      const tx = updated[i];
-      if (!tx.invoice_url) {
-        try {
-          const res = await api.post(`/transactions/${tx.id}/generate-invoice`);
-          if (res.data?.url) updated[i] = { ...tx, invoice_url: res.data.url };
-        } catch (err) { console.error('Failed for', tx.name); }
-      }
-    }
-
-    setBulkLoading(false);
-    // Show carousel with all bills that have invoices
-    const withInvoices = updated.filter(t => t.invoice_url);
-    if (withInvoices.length > 0) setViewAllBills(withInvoices);
-    await fetchTransactions();
-  };
-
-  const handleBulkWhatsAppSend = async () => {
-    const selectedTxs = data.items.filter(t => selected.includes(t.id));
-    if (!selectedTxs.length) return;
-    
-    setBulkWaLoading(true);
-    let sentCount = 0;
-    
-    for (let i = 0; i < selectedTxs.length; i++) {
-       const tx = selectedTxs[i];
-       if (tx.invoice_url && !tx.whatsapp_sent) {
-           try {
-               await api.post(`/transactions/${tx.id}/send-whatsapp`);
-               sentCount++;
-           } catch(e) { console.error('WhatsApp dispatch failed for', tx.name) }
-       }
-    }
-    
-    setBulkWaLoading(false);
-    alert(`Successfully dispatched ${sentCount} invoices via WhatsApp!`);
-    await fetchTransactions(); // refresh
-  };
-
-  const selectedTxs = data.items.filter(t => selected.includes(t.id));
+  const allSelected = data.items.length > 0 && selected.length === data.items.length;
 
   return (
     <>
-      {/* Modals */}
-      {viewAllBills && (
-        <ViewAllModal bills={viewAllBills} onClose={() => setViewAllBills(null)} />
-      )}
-      {singleBill && !viewAllBills && (
-        <InvoiceModal url={singleBill.url} name={singleBill.name} onClose={() => setSingleBill(null)} />
-      )}
-
-      <div className="space-y-5">
-        {/* Top bar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              className="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all"
-              placeholder="Search name, phone, tx ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <select
-            className="pl-4 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm bg-white font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option>All</option>
-            <option>Pending</option>
-            <option>Verified</option>
-            <option>Rejected</option>
-          </select>
-
-          {/* VIEW ALL BILLS button — shown when items selected */}
-          {selected.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-primary/10 border border-primary/20 rounded-xl">
-              <span className="text-xs font-bold text-primary">{selected.length} selected</span>
-              
-              <button
-                onClick={handleViewAll}
-                disabled={bulkLoading || bulkWaLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-white text-primary border border-primary/20 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all disabled:opacity-60 shadow-sm"
-              >
-                {bulkLoading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing...</>
-                  : <><Eye className="w-4 h-4" /> View All Bills</>
-                }
-              </button>
-
-              <button
-                onClick={handleBulkWhatsAppSend}
-                disabled={bulkLoading || bulkWaLoading}
-                className="flex items-center gap-2 px-5 py-2 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-all disabled:opacity-60 shadow-sm"
-              >
-                {bulkWaLoading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending WhatsApp...</>
-                  : <><MessageCircle className="w-4 h-4" /> Send WhatsApp</>
-                }
-              </button>
+      {editingTx && <EditModal tx={editingTx} onClose={() => setEditingTx(null)} onSave={() => { setEditingTx(null); fetchTransactions(); }} />}
+      
+      {singleBill && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[6px] flex items-center justify-center p-6 lg:p-12">
+          <div className="bg-white w-full max-w-6xl h-full rounded-[24px] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100"><Download className="w-5 h-5 text-indigo-600" /></div>
+                <div>
+                  <span className="text-sm font-black tracking-tight text-slate-900 block">{singleBill.name}</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Transaction Ledger Release</span>
+                </div>
+              </div>
+              <button onClick={() => setSingleBill(null)} className="p-3 hover:bg-slate-200/50 rounded-2xl text-slate-400 transition-all"><X className="w-6 h-6" /></button>
             </div>
-          )}
+            <iframe src={singleBill.url} className="w-full flex-1 border-none bg-slate-100/30" title="Preview" />
+            <div className="p-6 border-t border-slate-100 flex justify-center bg-slate-50/50">
+              <a href={singleBill.url} download className="px-10 py-3 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center gap-3">
+                Download Permanent Record
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-[1440px] mx-auto px-8 pb-32">
+        
+        {/* Modern Minimal Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10 pb-8 border-b border-slate-100">
+          <div>
+            <h1 className="text-2xl font-black tracking-tighter text-slate-900">Performance Ledger</h1>
+            <div className="flex items-center gap-2 mt-2">
+               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] leading-none">Database Online & Syncing</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setLatestBatchOnly(!latestBatchOnly)}
+              className={`px-5 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-xl border transition-all ${latestBatchOnly ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600 shadow-sm'}`}
+            >
+              Latest Signal
+            </button>
+            <button className="px-5 py-2.5 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 rounded-xl hover:border-indigo-200 hover:text-indigo-600 shadow-sm transition-all">Export XLSX</button>
+            <button onClick={handleWipeAll} className="px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-400 hover:bg-rose-50 rounded-xl transition-all">Wipe Logs</button>
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Minimalist Selection Banner */}
+        {selected.length > 0 && (
+          <div className="bg-indigo-600 text-white rounded-2xl px-8 py-5 flex items-center justify-between mb-8 shadow-2xl shadow-indigo-200">
+            <div className="flex items-center gap-6">
+              <div className="text-[13px] font-bold tracking-tight">
+                {selectAllAll ? `ALL ${data.total} RECORDS SELECTED` : `${selected.length} records selected for action`}
+              </div>
+              {!selectAllAll && data.total > data.items.length && (
+                <button onClick={() => setSelectAllAll(true)} className="text-[10px] font-black uppercase tracking-[0.2em] bg-white/10 px-3 py-1 rounded-full hover:bg-white/20 transition-all">
+                  Select all records
+                </button>
+              )}
+            </div>
+            <button onClick={handleBulkDelete} className="px-6 py-2.5 bg-white text-indigo-600 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg">
+              Destroy Logs
+            </button>
+          </div>
+        )}
+
+        {/* Toolbar */}
+        <div className="flex flex-col md:flex-row gap-4 items-center mb-8">
+          <form onSubmit={handleSearch} className="relative flex-1 w-full group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+            <input 
+              type="text" placeholder="Filter by name, phone or product..." 
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 text-[13px] font-bold text-slate-700 bg-white border border-slate-200 rounded-2xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all placeholder:text-slate-300 shadow-sm"
+            />
+          </form>
+          <div className="relative w-full md:w-44">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-5 py-3 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-200 rounded-2xl outline-none cursor-pointer hover:border-indigo-400 transition-all shadow-sm appearance-none text-slate-500">
+              <option value="All">All Category</option>
+              <option value="Verified">Verified</option>
+              <option value="Pending">Pending</option>
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* Minimalist SaaS Table */}
+        <div className="bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm shadow-slate-200/50 relative">
           {loading ? (
-            <div className="flex justify-center items-center py-20 text-gray-400">
-              <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading...
+            <div className="flex flex-col justify-center items-center py-40 text-slate-200">
+              <Loader2 className="w-10 h-10 animate-spin mb-4" />
+              <span className="text-[10px] font-black uppercase tracking-[0.4em]">Optimizing Ledger</span>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="pl-5 pr-2 py-3 w-10">
-                      <button onClick={toggleSelectAll} className="text-gray-400 hover:text-primary transition-colors">
-                        {allSelected
-                          ? <CheckSquare className="w-5 h-5 text-primary" />
-                          : <Square className="w-5 h-5" />
-                        }
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-extrabold text-gray-900 uppercase tracking-wider">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-extrabold text-gray-900 uppercase tracking-wider">Phone</th>
-                    <th className="px-4 py-3 text-left text-xs font-extrabold text-gray-900 uppercase tracking-wider">Tx ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-extrabold text-gray-900 uppercase tracking-wider">Amount</th>
-                    <th className="px-4 py-3 text-left text-xs font-extrabold text-gray-900 uppercase tracking-wider">Product</th>
-                    <th className="px-4 py-3 text-right text-xs font-extrabold text-gray-900 uppercase tracking-wider">Bill</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
-                  {data.items.map((tx) => {
-                    const isSelected = selected.includes(tx.id);
-                    return (
-                      <tr key={tx.id} className={`transition-colors ${isSelected ? 'bg-primary/5' : 'hover:bg-gray-50/80'}`}>
-                        <td className="pl-5 pr-2 py-4 w-10">
-                          <button onClick={() => toggleSelect(tx.id)} className="text-gray-300 hover:text-primary transition-colors">
-                            {isSelected
-                              ? <CheckSquare className="w-5 h-5 text-primary" />
-                              : <Square className="w-5 h-5" />
-                            }
-                          </button>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="text-sm font-semibold text-gray-900">{tx.name}</div>
-                          {tx.email && <div className="text-xs text-gray-400">{tx.email}</div>}
-                        </td>
-                        <td className="px-4 py-4 text-sm font-medium text-gray-700">{tx.phone}</td>
-                        <td className="px-4 py-4 text-sm font-mono text-gray-500">{tx.transaction_id}</td>
-                        <td className="px-4 py-4 text-sm font-bold text-gray-900">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                          {tx.product || 'General'}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {tx.whatsapp_sent && (
-                               <span className="flex items-center text-green-500 mr-2" title="Sent on WhatsApp">
-                                  <CheckSquare className="w-4 h-4" />
-                               </span>
-                            )}
-                            {tx.invoice_url ? (
-                              <>
-                                <button
-                                  onClick={() => setSingleBill({ url: `http://localhost:8000${tx.invoice_url}`, name: tx.name })}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition-all border border-blue-100"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  View Bill
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                      try {
-                                          await api.post(`/transactions/${tx.id}/send-whatsapp`);
-                                          alert('Sent successfully!');
-                                          fetchTransactions();
-                                      } catch(e) { alert('Failed sending.'); }
-                                  }}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-50 text-green-600 text-xs font-bold hover:bg-green-100 transition-all border border-green-100"
-                                >
-                                  <MessageCircle className="w-3.5 h-3.5" />
-                                  Send
-                                </button>
-                              </>
-                            ) : (
-                            <button
-                              onClick={() => generateInvoice(tx)}
-                              disabled={generatingId === tx.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all disabled:opacity-50"
-                            >
-                              {generatingId === tx.id
-                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                : <FileText className="w-3.5 h-3.5" />
-                              }
-                              Generate
-                            </button>
-                          )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {data.items.length === 0 && (
-                    <tr>
-                      <td colSpan="6" className="px-6 py-16 text-center text-gray-400 text-sm">
-                        No transactions found. Upload a file to get started.
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="px-8 py-5 w-16 text-center">
+                        <button onClick={toggleSelectAll} className="p-1 px-1.5 rounded bg-white border border-slate-200 text-slate-300 hover:text-indigo-600 active:scale-95 transition-all">
+                          {allSelected ? <CheckSquare className="w-4 h-4 text-indigo-600" /> : <Square className="w-4 h-4" />}
+                        </button>
+                      </th>
+                      <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Signal Date</th>
+                      <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Customer Entity</th>
+                      <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Phone Identity</th>
+                      <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reference_ID</th>
+                      <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Revenue Unit</th>
+                      <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Memo Details</th>
+                      <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Validation</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {data.items.map((tx) => {
+                      const isSelected = selected.includes(tx.id);
+                      return (
+                        <tr key={tx.id} className={`group transition-all duration-200 ${isSelected ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
+                          <td className="px-8 py-5 text-center">
+                            <button onClick={() => toggleSelect(tx.id)} className={`p-1 px-1.5 rounded transition-all ${isSelected ? 'text-indigo-600' : 'text-slate-200 group-hover:text-slate-400'}`}>
+                              {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                            </button>
+                          </td>
+                          <td className="px-4 py-5 text-[11px] font-bold text-slate-400 whitespace-nowrap">{tx.date || '--'}</td>
+                          <td className="px-4 py-5">
+                            <span className="text-[13px] font-black text-slate-800 tracking-tight">{tx.name}</span>
+                          </td>
+                          <td className="px-4 py-5">
+                            <span className="text-[11px] text-slate-500 font-bold bg-slate-100/60 px-2 py-0.5 rounded-md">{tx.phone}</span>
+                          </td>
+                          <td className="px-4 py-5">
+                             <div className="font-mono text-[10px] font-bold text-slate-300 tracking-widest uppercase group-hover:text-slate-900 transition-colors">{tx.transaction_id}</div>
+                          </td>
+                          <td className="px-4 py-5 text-[12px] font-black text-slate-900 italic">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-5">
+                            <p className="text-[12px] font-bold text-slate-700 line-clamp-1 max-w-[200px]" title={tx.product}>{tx.product || '-'}</p>
+                          </td>
+                          <td className="px-8 py-5 text-right">
+                            <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                              {tx.invoice_url ? (
+                                <button onClick={() => setSingleBill({ url: `http://localhost:8000${tx.invoice_url}`, name: tx.name })} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all" title="View"><Eye className="w-4 h-4" /></button>
+                              ) : (
+                                <button onClick={() => generateInvoice(tx)} disabled={generatingId === tx.id} className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 transition-all shadow-lg shadow-slate-200">
+                                  {generatingId === tx.id ? 'Wait' : 'Ledger'}
+                                </button>
+                              )}
+                              <div className="w-[1px] h-4 bg-slate-100 mx-1" />
+                              <button onClick={() => setEditingTx(tx)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-all"><Edit3 className="w-4 h-4" /></button>
+                              <button onClick={async () => { if(window.confirm('Wipe permanent log?')) { await api.delete(`/transactions/${tx.id}`); fetchTransactions(); } }} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                            {tx.invoice_url && <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest group-hover:hidden">Verified Signal</span>}
+                            {!tx.invoice_url && !generatingId && <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest group-hover:hidden">Pending Sync</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Minimalist Pagination */}
+              <div className="px-10 py-8 flex items-center justify-between bg-slate-50/30 border-t border-slate-100">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{data.total} Signals Logged</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-indigo-400 disabled:opacity-30 transition-all shadow-sm"><ChevronLeft className="w-5 h-5 text-slate-600" /></button>
+                  <div className="px-5 h-10 flex items-center justify-center text-[12px] font-black text-slate-900 bg-white border border-slate-200 rounded-xl select-none shadow-sm">{page + 1}</div>
+                  <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= data.total} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-indigo-400 disabled:opacity-30 transition-all shadow-sm"><ChevronRight className="w-5 h-5 text-slate-600" /></button>
+                </div>
+              </div>
+            </>
           )}
         </div>
-
-        {data.total > 0 && (
-          <p className="text-xs text-gray-400 text-right">
-            Showing {data.items.length} of {data.total} transactions
-          </p>
-        )}
       </div>
     </>
   );

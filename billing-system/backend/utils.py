@@ -9,119 +9,172 @@ def generate_invoice_pdf(transaction: dict):
     inv_dir = "uploads/invoices"
     os.makedirs(inv_dir, exist_ok=True)
     
-    file_name = f"INV-{transaction.get('transaction_id')}-{uuid.uuid4().hex[:6]}.pdf"
+    # Sanitize transaction ID for filename
+    raw_id = str(transaction.get('transaction_id', 'TXN')).strip()
+    safe_tx_id = "".join([c if c.isalnum() else "_" for c in raw_id])[:15]
+    
+    file_name = f"INV-{safe_tx_id}-{uuid.uuid4().hex[:6]}.pdf"
     file_path = os.path.join(inv_dir, file_name)
     
     c = canvas.Canvas(file_path, pagesize=letter)
     width, height = letter
     
-    # --- Styles & Layout ---
-    primary_color = (0.1, 0.4, 0.7) # Deep Blue
-    c.setStrokeColorRGB(*primary_color)
+    # --- Branding & Header ---
+    branding_color = (0, 0.5, 0) # Green as per image
+    c.setStrokeColorRGB(*branding_color)
     
-    # 1. Header Section
-    c.setFont("Helvetica-Bold", 18)
-    c.setFillColorRGB(*primary_color)
-    c.drawCentredString(width/2, height - 50, "ABC TRAINING SOLUTIONS")
+    # Header Details
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColorRGB(0, 0, 0)
+    c.drawString(50, height - 50, "Zeal Healing")
     
-    c.setFont("Helvetica", 10)
-    c.setFillColorRGB(0.2, 0.2, 0.2)
-    c.drawCentredString(width/2, height - 65, "123 Business Plaza, Chennai, India - 600001")
-    c.drawCentredString(width/2, height - 78, "Email: info@abctraining.com | Ph: +91 9876543210")
+    c.setFont("Helvetica", 9)
+    header_y = height - 65
+    c.drawString(50, header_y, "19/10A THIRUCHENGODE ROAD Namakkal")
+    c.drawString(50, header_y - 12, "Phone no. : 9025574750")
+    c.drawString(50, header_y - 24, "Email : baghyazeal@gmail.com")
+    c.drawString(50, header_y - 36, "GSTIN : 33BJJP8989Q1Z7")
+    c.drawString(50, header_y - 48, "State : 33-Tamil Nadu")
     
-    # Horizontal Line
-    c.setLineWidth(0.5)
-    c.line(50, height - 90, width - 50, height - 90)
+    # Horizonatal Line
+    c.setLineWidth(1.5)
+    c.setStrokeColorRGB(*branding_color)
+    c.line(50, header_y - 55, width - 50, header_y - 55)
     
-    # 2. Invoice Meta Info
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(width - 150, height - 110, "TAX INVOICE")
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColorRGB(*branding_color)
+    c.drawCentredString(width/2, header_y - 75, "Tax Invoice")
     
-    c.setFont("Helvetica", 10)
-    c.drawRightString(width - 50, height - 125, f"Invoice No: INV-{transaction.get('transaction_id')[:8].upper()}")
-    c.drawRightString(width - 50, height - 140, f"Date: {datetime.utcnow().strftime('%d/%m/%Y')}")
-    
-    # 3. Billed To Section
+    # --- Invoice Info ---
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(50, height - 125, "Billed To:")
+    c.setFillColorRGB(0,0,0)
+    c.drawString(50, header_y - 100, "Bill To")
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(50, header_y - 115, str(transaction.get('name')))
     c.setFont("Helvetica", 10)
-    c.drawString(50, height - 140, f"Name: {transaction.get('name')}")
-    c.drawString(50, height - 155, f"Phone: {transaction.get('phone')}")
-    if transaction.get('email'):
-        c.drawString(50, height - 170, f"Email: {transaction.get('email')}")
-        c.drawString(50, height - 185, f"Transaction ID: {transaction.get('transaction_id')}")
-        table_top = height - 230
-    else:
-        c.drawString(50, height - 170, f"Transaction ID: {transaction.get('transaction_id')}")
-        table_top = height - 210
+    c.drawString(50, header_y - 130, f"Contact No. : {transaction.get('phone')}")
     
-    # 4. Items Table
-    c.setFillColorRGB(0.95, 0.95, 0.95)
-    c.rect(50, table_top - 20, width - 100, 20, fill=1, stroke=1)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawRightString(width - 50, header_y - 100, "Invoice Details")
+    c.setFont("Helvetica", 9)
+    c.drawRightString(width - 50, header_y - 115, f"Invoice No. : ZH-FY25-26/{transaction.get('transaction_id')[:6]}")
+    c.drawRightString(width - 50, header_y - 130, f"Date : {datetime.utcnow().strftime('%d-%m-%Y')}")
+    
+    # --- Table Header ---
+    table_top = header_y - 150
+    c.setFillColorRGB(*branding_color)
+    # Widen green box to 555 (width - 90)
+    c.rect(50, table_top - 20, width - 90, 20, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(55, table_top - 13, "#")
+    c.drawString(75, table_top - 13, "Item name")
+    c.drawString(190, table_top - 13, "HSN/ SAC")
+    c.drawString(250, table_top - 13, "Quantity")
+    c.drawString(310, table_top - 13, "Unit")
+    c.drawString(360, table_top - 13, "Price/ Unit")
+    c.drawString(430, table_top - 13, "GST")
+    c.drawString(490, table_top - 13, "Amount")
+    
+    # --- Table Content ---
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica", 9)
+    row_y = table_top - 35
+    c.drawString(55, row_y, "1")
+    c.drawString(75, row_y, str(transaction.get('product'))[:35])
+    c.drawString(190, row_y, str(transaction.get('hsn_code')))
+    c.drawString(250, row_y, "1")
+    c.drawString(310, row_y, "Nos")
+    
+    # Mirror Mode: Calculate split from Total
+    total_raw = float(transaction.get('total_amount', 0))
+    rate = float(transaction.get('gst_rate', 18.0))
+    
+    # Back-calculate Base and GST
+    unit_price = total_raw / (1 + (rate / 100))
+    gst_amt = total_raw - unit_price
+    cgst = sgst = gst_amt / 2
+    
+    # Simple amount in words mock
+    c.drawString(50, calc_y - 12, "Rupees only") # Placeholder
+    
+    c.drawRightString(450, calc_y, "Sub Total")
+    c.drawRightString(580, calc_y, f"{unit_price:,.2f}")
+    
+    c.drawRightString(450, calc_y - 15, f"SGST@{rate/2}%")
+    c.drawRightString(580, calc_y - 15, f"{sgst:,.2f}")
+    
+    c.drawRightString(450, calc_y - 30, f"CGST@{rate/2}%")
+    c.drawRightString(580, calc_y - 30, f"{cgst:,.2f}")
+    
+    c.drawRightString(450, calc_y - 45, "Round off")
+    c.drawRightString(580, calc_y - 45, f"{round_off:,.2f}")
+    
+    # Total Box - Added 20px gap from Round off
+    c.setFillColorRGB(*branding_color)
+    c.rect(400, calc_y - 85, 190, 20, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(410, calc_y - 79, "Total")
+    c.drawRightString(580, calc_y - 79, f"{rounded_total:,.2f}")
     
     c.setFillColorRGB(0, 0, 0)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(60, table_top - 14, "S.No")
-    c.drawString(100, table_top - 14, "Description")
-    c.drawString(300, table_top - 14, "HSN/SAC")
-    c.drawString(370, table_top - 14, "Qty")
-    c.drawString(420, table_top - 14, "Unit Price")
-    c.drawString(500, table_top - 14, "Amount")
-    
-    # Item Row
-    row_y = table_top - 40
-    c.setFont("Helvetica", 9)
-    c.drawString(60, row_y, "1")
-    product_name = str(transaction.get("product"))
-    if len(product_name) > 42:
-        product_name = product_name[:39] + "..."
-    c.drawString(100, row_y, product_name)
-    c.drawString(300, row_y, "9983") # Mocked HSN for training
-    c.drawString(370, row_y, "1")
-    c.drawString(420, row_y, f"{transaction.get('amount'):,.2f}")
-    c.drawString(500, row_y, f"{transaction.get('amount'):,.2f}")
-    
-    # Grid lines for table
-    c.line(50, table_top - 50, width - 50, table_top - 50)
-    
-    # 5. Calculations
-    calc_start = table_top - 80
-    amount = float(transaction.get("amount"))
-    cgst = amount * 0.09
-    sgst = amount * 0.09
-    total_gst = cgst + sgst
-    grand_total = amount + total_gst
-    
     c.setFont("Helvetica", 10)
-    c.drawRightString(480, calc_start, "Subtotal:")
-    c.drawRightString(550, calc_start, f"{amount:,.2f}")
+    c.drawRightString(450, calc_y - 100, "Received")
+    c.drawRightString(580, calc_y - 100, f"{rounded_total:,.2f}")
+    c.drawRightString(450, calc_y - 115, "Balance")
+    c.drawRightString(580, calc_y - 115, "0.00")
     
-    c.drawRightString(480, calc_start - 15, "CGST @ 9%:")
-    c.drawRightString(550, calc_start - 15, f"{cgst:,.2f}")
+    # Lines
+    c.setLineWidth(0.5)
+    c.setStrokeColorRGB(0.8, 0.8, 0.8)
+    c.line(50, row_y - 15, width - 50, row_y - 15)
     
-    c.drawRightString(480, calc_start - 30, "SGST @ 9%:")
-    c.drawRightString(550, calc_start - 30, f"{sgst:,.2f}")
-    
-    c.line(400, calc_start - 40, width - 50, calc_start - 40)
-    
-    c.setFont("Helvetica-Bold", 11)
-    c.drawRightString(480, calc_start - 55, "Grand Total:")
-    c.drawRightString(550, calc_start - 55, f"INR {grand_total:,.2f}")
-    
-    # 6. Amount in Words (simple mock or library needed, but we'll just format the number for now)
-    c.setFont("Helvetica-Oblique", 9)
-    c.drawString(50, calc_start - 80, f"Amount in Words: {grand_total:,.0f} Rupees Only")
-    
-    # 7. Signature & Footer
+    # --- Footer Calculations ---
+    calc_y = row_y - 40
+    c.setFont("Helvetica", 10)
+    c.drawString(50, calc_y, "Invoice Amount In Words")
     c.setFont("Helvetica-Bold", 9)
-    c.drawRightString(width - 50, 150, "For ABC Training Solutions")
-    c.line(width - 150, 100, width - 50, 100)
-    c.drawRightString(width - 50, 85, "Authorized Signatory")
+    # Simple amount in words mock
+    c.drawString(50, calc_y - 12, "Rupees only") # Placeholder
     
-    c.setFont("Helvetica", 9)
-    c.drawCentredString(width/2, 50, "Thank you for your business!")
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawCentredString(width/2, 38, "E. & O.E. This is a computer generated invoice and does not require a signature.")
+    c.drawRightString(450, calc_y, "Sub Total")
+    c.drawRightString(580, calc_y, f"{unit_price:,.2f}")
+    
+    c.drawRightString(450, calc_y - 15, f"SGST@{rate/2}%")
+    c.drawRightString(580, calc_y - 15, f"{sgst:,.2f}")
+    
+    c.drawRightString(450, calc_y - 30, f"CGST@{rate/2}%")
+    c.drawRightString(580, calc_y - 30, f"{cgst:,.2f}")
+    
+    rounded_total = round(total_raw)
+    round_off = rounded_total - total_raw
+    
+    c.drawRightString(450, calc_y - 45, "Round off")
+    c.drawRightString(580, calc_y - 45, f"{round_off:,.2f}")
+    
+    # Total Box - Added 20px gap from Round off
+    c.setFillColorRGB(*branding_color)
+    c.rect(400, calc_y - 85, 190, 20, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(410, calc_y - 79, "Total")
+    c.drawRightString(580, calc_y - 79, f"{rounded_total:,.2f}")
+    
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica", 10)
+    c.drawRightString(450, calc_y - 100, "Received")
+    c.drawRightString(580, calc_y - 100, f"{rounded_total:,.2f}")
+    c.drawRightString(450, calc_y - 115, "Balance")
+    c.drawRightString(580, calc_y - 115, "0.00")
+    
+    # Signatory
+    sign_y = 100
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(width - 120, sign_y + 40, "For :Zeal Healing")
+    # Image or Name
+    c.setFont("Helvetica-BoldOblique", 12)
+    c.drawCentredString(width - 120, sign_y + 15, "Authorised Signatory")
     
     c.save()
     
