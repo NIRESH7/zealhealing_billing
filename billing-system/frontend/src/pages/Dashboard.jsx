@@ -101,14 +101,16 @@ export default function Dashboard() {
   const [history, setHistory] = useState([]);
   const [activities, setActivities] = useState([]);
   const [topCourses, setTopCourses] = useState([]);
+  const [topCustomers, setTopCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
   
-  const [filters, setFilters] = useState({ products: [], customers: [], years: [] });
+  const [filters, setFilters] = useState({ products: [], customers: [], years: [], max_visits: 0 });
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [selectedYear, setSelectedYear] = useState('All');
   const [viewType, setViewType] = useState('monthly');
+  const [minVisits, setMinVisits] = useState(0);
 
   const fetchData = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
@@ -120,23 +122,26 @@ export default function Dashboard() {
       selectedCustomers.forEach(c => params.append('name', c));
       params.append('year', selectedYear);
       params.append('view_type', viewType);
+      if (minVisits > 0) params.append('min_visits', minVisits);
       
-      const [statsRes, historyRes, activityRes, coursesRes] = await Promise.all([
+      const [statsRes, historyRes, activityRes, coursesRes, customerRes] = await Promise.all([
         api.get('/dashboard/stats', { params }),
         api.get('/dashboard/history', { params }),
         api.get('/dashboard/activity'),
-        api.get('/dashboard/top-courses', { params })
+        api.get('/dashboard/top-courses', { params }),
+        api.get('/dashboard/top-customers', { params })
       ]);
       
       setStats(statsRes.data);
       setHistory(historyRes.data);
       setActivities(activityRes.data);
       setTopCourses(coursesRes.data);
+      setTopCustomers(customerRes.data);
     } catch (err) { console.error(err); } finally { 
       setLoading(false); 
       setChartLoading(false);
     }
-  }, [selectedProducts, selectedCustomers, selectedYear, viewType]);
+  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits]);
 
   useEffect(() => {
     api.get('/dashboard/filters').then(res => setFilters(res.data));
@@ -146,7 +151,7 @@ export default function Dashboard() {
   // Subsequent updates
   useEffect(() => {
     if (!loading) fetchData();
-  }, [selectedProducts, selectedCustomers, selectedYear, viewType]);
+  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits]);
 
   const kpiCards = [
     { label: 'Revenue', value: `₹${stats?.total_revenue?.toLocaleString() || '0'}`, icon: TrendingUp, color: 'text-indigo-600' },
@@ -275,8 +280,45 @@ export default function Dashboard() {
           {topCourses.length === 0 && <div className="text-center py-12 text-[11px] text-slate-300 font-bold uppercase tracking-widest">No Signals Found</div>}
         </div>
 
-        {/* Streaming Logs */}
-        <div className="lg:col-span-3 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mt-4">
+        {/* Customer Details - Visit Frequency */}
+        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm h-full">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">Customer Frequency</h3>
+            <select 
+              value={minVisits} 
+              onChange={(e) => setMinVisits(Number(e.target.value))}
+              className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded outline-none border-none cursor-pointer hover:bg-indigo-100 transition-colors"
+            >
+              <option value="0">ALL VISITS</option>
+              {Array.from({ length: filters.max_visits || 10 }, (_, i) => i + 1).map(num => (
+                <option key={num} value={num}>{num} {num === 1 ? 'VISIT' : 'VISITS'}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-6">
+            {topCustomers.map((customer, i) => (
+              <div key={i} className="flex items-center justify-between group">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600 border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                    {customer.initials}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[12px] font-bold text-slate-700 tracking-tight leading-tight">{customer.name}</span>
+                    <span className="text-[10px] font-medium text-slate-400">{customer.phone}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-xs font-black text-indigo-600">{customer.count} VISITS</span>
+                  <span className="text-[9px] font-bold text-slate-300 italic">₹{customer.revenue.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {topCustomers.length === 0 && <div className="text-center py-12 text-[11px] text-slate-300 font-bold uppercase tracking-widest">No History</div>}
+        </div>
+
+        {/* Streaming Logs - Moved Up and Resized */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-full">
           <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center">
             <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">Live Billing Stream</h3>
             <div className="px-3 py-1 bg-emerald-50 rounded-lg flex items-center gap-2">
@@ -291,7 +333,7 @@ export default function Dashboard() {
                   <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Timestamp</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Billing Event</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Validation</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Reference_ID</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ref_ID</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">

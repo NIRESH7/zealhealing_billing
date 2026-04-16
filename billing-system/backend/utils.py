@@ -80,13 +80,8 @@ def generate_invoice_pdf(transaction: dict):
     c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica", 9)
     row_y = table_top - 35
-    c.drawString(55, row_y, "1")
-    c.drawString(75, row_y, str(transaction.get('product'))[:35])
-    c.drawString(190, row_y, str(transaction.get('hsn_code')))
-    c.drawString(250, row_y, "1")
-    c.drawString(310, row_y, "Nos")
     
-    # Mirror Mode: Calculate split from Total
+    # Mirror Mode: Calculate split from Total BEFORE drawing
     total_raw = float(transaction.get('total_amount', 0))
     rate = float(transaction.get('gst_rate', 18.0))
     
@@ -95,6 +90,23 @@ def generate_invoice_pdf(transaction: dict):
     gst_amt = total_raw - unit_price
     cgst = sgst = gst_amt / 2
     
+    rounded_total = round(total_raw)
+    round_off = rounded_total - total_raw
+
+    c.drawString(55, row_y, "1")
+    c.drawString(75, row_y, str(transaction.get('product'))[:35])
+    c.drawString(190, row_y, str(transaction.get('hsn_code')))
+    c.drawString(250, row_y, "1")
+    c.drawString(310, row_y, "Nos")
+    c.drawString(360, row_y, f"{unit_price:,.2f}")
+    c.drawString(430, row_y, f"{rate}%")
+    c.drawString(490, row_y, f"{total_raw:,.2f}")
+    
+    # --- Footer Calculations ---
+    calc_y = row_y - 40
+    c.setFont("Helvetica", 10)
+    c.drawString(50, calc_y, "Invoice Amount In Words")
+    c.setFont("Helvetica-Bold", 9)
     # Simple amount in words mock
     c.drawString(50, calc_y - 12, "Rupees only") # Placeholder
     
@@ -129,44 +141,6 @@ def generate_invoice_pdf(transaction: dict):
     c.setLineWidth(0.5)
     c.setStrokeColorRGB(0.8, 0.8, 0.8)
     c.line(50, row_y - 15, width - 50, row_y - 15)
-    
-    # --- Footer Calculations ---
-    calc_y = row_y - 40
-    c.setFont("Helvetica", 10)
-    c.drawString(50, calc_y, "Invoice Amount In Words")
-    c.setFont("Helvetica-Bold", 9)
-    # Simple amount in words mock
-    c.drawString(50, calc_y - 12, "Rupees only") # Placeholder
-    
-    c.drawRightString(450, calc_y, "Sub Total")
-    c.drawRightString(580, calc_y, f"{unit_price:,.2f}")
-    
-    c.drawRightString(450, calc_y - 15, f"SGST@{rate/2}%")
-    c.drawRightString(580, calc_y - 15, f"{sgst:,.2f}")
-    
-    c.drawRightString(450, calc_y - 30, f"CGST@{rate/2}%")
-    c.drawRightString(580, calc_y - 30, f"{cgst:,.2f}")
-    
-    rounded_total = round(total_raw)
-    round_off = rounded_total - total_raw
-    
-    c.drawRightString(450, calc_y - 45, "Round off")
-    c.drawRightString(580, calc_y - 45, f"{round_off:,.2f}")
-    
-    # Total Box - Added 20px gap from Round off
-    c.setFillColorRGB(*branding_color)
-    c.rect(400, calc_y - 85, 190, 20, fill=1, stroke=0)
-    c.setFillColorRGB(1, 1, 1)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(410, calc_y - 79, "Total")
-    c.drawRightString(580, calc_y - 79, f"{rounded_total:,.2f}")
-    
-    c.setFillColorRGB(0, 0, 0)
-    c.setFont("Helvetica", 10)
-    c.drawRightString(450, calc_y - 100, "Received")
-    c.drawRightString(580, calc_y - 100, f"{rounded_total:,.2f}")
-    c.drawRightString(450, calc_y - 115, "Balance")
-    c.drawRightString(580, calc_y - 115, "0.00")
     
     # Signatory
     sign_y = 100

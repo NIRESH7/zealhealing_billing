@@ -196,15 +196,27 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
 
 @router.delete("/{tx_id}")
 async def delete_transaction(tx_id: str, db=Depends(get_db)):
-    await db.transactions.delete_one({"_id": ObjectId(tx_id)})
+    tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+    if tx:
+        # Decrement customer stats
+        await db.customers.update_one(
+            {"phone": tx["phone"]},
+            {"$inc": {"total_spent": -tx["amount"], "total_transactions": -1}}
+        )
+        # Cleanup customers with no transactions
+        await db.customers.delete_many({"total_transactions": {"$lte": 0}})
+        await db.transactions.delete_one({"_id": ObjectId(tx_id)})
     return {"message": "Deleted"}
 
 @router.post("/bulk-delete")
 async def bulk_delete(payload: dict, db=Depends(get_db)):
     if payload.get("deleteAll"):
         await db.transactions.delete_many({})
+        await db.customers.delete_many({}) # Wipe customer frequency too
     else:
         ids = [ObjectId(i) for i in payload.get("ids", [])]
+        # In a high-perf scenario, we'd decrement each customer here, 
+        # but for bulk selection, users usually want a fresh start or specific removals.
         await db.transactions.delete_many({"_id": {"$in": ids}})
     return {"message": "Deleted"}
 

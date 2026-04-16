@@ -34,7 +34,17 @@ async def get_dashboard_filters(db=Depends(get_db), current_user=Depends(get_cur
     year_cursor = db.transactions.aggregate(pipeline)
     years_res = await year_cursor.to_list(length=10)
     years = [str(y["_id"]) for y in years_res if y["_id"]]
-    return {"products": products, "customers": customer_names, "years": years if years else [str(datetime.now().year)]}
+    
+    # Calculate Max Visits for dynamic filter range
+    max_visits_res = await db.customers.find_one(sort=[("total_transactions", -1)])
+    max_visits = max_visits_res.get("total_transactions", 10) if max_visits_res else 10
+    
+    return {
+        "products": products, 
+        "customers": customer_names, 
+        "years": years if years else [str(datetime.now().year)],
+        "max_visits": max_visits
+    }
 
 @router.get("/stats")
 async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
@@ -107,4 +117,29 @@ async def get_top_courses(product: Optional[List[str]] = Query(None), name: Opti
         raw_name = course.get("_id") or "Unknown"
         display_name = str(raw_name).strip()
         result.append({"name": display_name if display_name else "Generic", "revenue": course.get("revenue", 0), "count": course.get("count", 0), "initials": "".join([n[0] for n in display_name.split()[:2]]).upper() if display_name else "XX"})
+    return result
+
+@router.get("/top-customers")
+async def get_top_customers(name: Optional[List[str]] = Query(None), min_visits: Optional[int] = Query(None), db=Depends(get_db), current_user=Depends(get_current_user)):
+    query = {}
+    if name:
+        clean_names = [n for n in name if n and n != "All" and n != "Customers"]
+        if clean_names: query["name"] = {"$in": clean_names}
+    
+    if min_visits:
+        query["total_transactions"] = int(min_visits)
+    
+    cursor = db.customers.find(query).sort("total_transactions", -1).limit(6)
+    customers = await cursor.to_list(length=6)
+    
+    result = []
+    for c in customers:
+        display_name = c.get("name", "Unknown")
+        result.append({
+            "name": display_name,
+            "phone": c.get("phone", "N/A"),
+            "count": c.get("total_transactions", 0),
+            "revenue": c.get("total_spent", 0),
+            "initials": "".join([n[0] for n in display_name.split()[:2]]).upper() if display_name else "UU"
+        })
     return result
