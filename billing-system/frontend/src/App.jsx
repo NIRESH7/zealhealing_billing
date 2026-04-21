@@ -9,6 +9,7 @@ import UploadData from './pages/UploadData';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import DB from './pages/DB';
+import Products from './pages/Products';
 import { UploadProvider } from './context/UploadContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
         <Route path="db" element={<DB />} />
+        <Route path="products" element={<Products />} />
       </Route>
     </Routes>
   );

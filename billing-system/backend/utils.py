@@ -3,6 +3,50 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import uuid
+from decimal import Decimal
+
+def num_to_words(number):
+    def _convert_nn(n):
+        units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+        tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+        if n < 20: return units[n]
+        return tens[n // 10] + (" " + units[n % 10] if n % 10 != 0 else "")
+
+    def _convert_nnn(n):
+        res = ""
+        if n >= 100:
+            res += _convert_nn(n // 100) + " Hundred"
+            n %= 100
+        if n > 0:
+            if res != "": res += " and "
+            res += _convert_nn(n)
+        return res
+
+    if number == 0: return "Zero Rupees Only"
+    
+    n = int(number)
+    parts = []
+    if n >= 10000000:
+        parts.append(_convert_nnn(n // 10000000) + " Crore")
+        n %= 10000000
+    if n >= 100000:
+        parts.append(_convert_nnn(n // 100000) + " Lakh")
+        n %= 100000
+    if n >= 1000:
+        parts.append(_convert_nnn(n // 1000) + " Thousand")
+        n %= 1000
+    if n > 0:
+        parts.append(_convert_nnn(n))
+        
+    return " ".join(parts) + " Rupees Only"
+
+def get_hsn_details(product_name):
+    p_lower = product_name.lower()
+    if "reiki" in p_lower: return "9997", 5.0
+    elif any(w in p_lower for w in ["crystal", "bracelet", "tumble", "zibu", "pyramid", "selenite"]): return "7103", 0.25
+    elif "silver" in p_lower: return "7106", 3.0
+    elif any(w in p_lower for w in ["tarot", "reading"]): return "9983", 18.0
+    return "9983", 18.0 # Default
 
 def generate_invoice_pdf(transaction: dict):
     # Setup directory
@@ -18,6 +62,14 @@ def generate_invoice_pdf(transaction: dict):
     
     c = canvas.Canvas(file_path, pagesize=letter)
     width, height = letter
+    
+    # Draw Logo at top right
+    logo_path = r"c:\Users\Admin\Desktop\zeal healing\BILLING_WEB\billing-system\1003648003.png"
+    if os.path.exists(logo_path):
+        try:
+            c.drawImage(logo_path, width - 200, height - 100, width=150, height=80, preserveAspectRatio=True, mask='auto')
+        except:
+            pass
     
     # --- Branding & Header ---
     branding_color = (0, 0.5, 0) # Green as per image
@@ -36,14 +88,18 @@ def generate_invoice_pdf(transaction: dict):
     c.drawString(50, header_y - 36, "GSTIN : 33BJJP8989Q1Z7")
     c.drawString(50, header_y - 48, "State : 33-Tamil Nadu")
     
-    # Horizonatal Line
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColorRGB(*branding_color)
+    c.drawString(50, header_y - 60, "Web : https://zealhealing.com/")
+    
+    # Horizontal Line
     c.setLineWidth(1.5)
     c.setStrokeColorRGB(*branding_color)
-    c.line(50, header_y - 55, width - 50, header_y - 55)
+    c.line(50, header_y - 67, width - 50, header_y - 67)
     
     c.setFont("Helvetica-Bold", 14)
     c.setFillColorRGB(*branding_color)
-    c.drawCentredString(width/2, header_y - 75, "Tax Invoice")
+    c.drawCentredString(width/2, header_y - 87, "Tax Invoice")
     
     # --- Invoice Info ---
     c.setFont("Helvetica-Bold", 10)
@@ -57,90 +113,150 @@ def generate_invoice_pdf(transaction: dict):
     c.setFont("Helvetica-Bold", 10)
     c.drawRightString(width - 50, header_y - 100, "Invoice Details")
     c.setFont("Helvetica", 9)
-    c.drawRightString(width - 50, header_y - 115, f"Invoice No. : ZH-FY25-26/{transaction.get('transaction_id')[:6]}")
-    c.drawRightString(width - 50, header_y - 130, f"Date : {datetime.utcnow().strftime('%d-%m-%Y')}")
+    c.drawRightString(width - 50, header_y - 117, f"Invoice No. : ZH-FY25-26/{transaction.get('transaction_id')[:6]}")
+    c.drawRightString(width - 50, header_y - 132, f"Date : {datetime.utcnow().strftime('%d-%m-%Y')}")
     
     # --- Table Header ---
-    table_top = header_y - 150
+    table_top = header_y - 160
     c.setFillColorRGB(*branding_color)
     # Widen green box to 555 (width - 90)
     c.rect(50, table_top - 20, width - 90, 20, fill=1, stroke=0)
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(55, table_top - 13, "#")
-    c.drawString(75, table_top - 13, "Item name")
-    c.drawString(190, table_top - 13, "HSN/ SAC")
-    c.drawString(250, table_top - 13, "Quantity")
-    c.drawString(310, table_top - 13, "Unit")
-    c.drawString(360, table_top - 13, "Price/ Unit")
-    c.drawString(430, table_top - 13, "GST")
-    c.drawString(490, table_top - 13, "Amount")
+    c.drawString(45, table_top - 13, "#")
+    c.drawString(65, table_top - 13, "Item name")
+    c.drawString(265, table_top - 13, "HSN/ SAC")
+    c.drawString(320, table_top - 13, "Qty")
+    c.drawString(355, table_top - 13, "Unit")
+    c.drawString(400, table_top - 13, "Price/ Unit")
+    c.drawString(470, table_top - 13, "GST")
+    c.drawString(520, table_top - 13, "Amount")
     
     # --- Table Content ---
     c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica", 9)
     row_y = table_top - 35
     
-    # Mirror Mode: Calculate split from Total BEFORE drawing
-    total_raw = float(transaction.get('total_amount', 0))
-    rate = float(transaction.get('gst_rate', 18.0))
+    # Mirror Mode: Support Multiple Products
+    products_raw = str(transaction.get('product', '-'))
+    # Clean up and split by comma
+    product_list = [p.strip() for p in products_raw.split(',') if p.strip()]
+    if not product_list: product_list = ["-"]
     
-    # Back-calculate Base and GST
-    unit_price = total_raw / (1 + (rate / 100))
-    gst_amt = total_raw - unit_price
-    cgst = sgst = gst_amt / 2
+    total_raw = float(transaction.get('total_amount', 0))
+    # Divide amount equally among products for display
+    amount_per_product = total_raw / len(product_list)
+    
+    # --- Logic: Manual/Excel Optimized ---
+    items_list = transaction.get('invoice_items', [])
+    gst_breakdown = transaction.get('gst_breakdown', [])
+    shipping = Decimal(str(transaction.get('shipping', 0)))
+    total_raw = Decimal(str(transaction.get('total_amount', 0)))
+    
+    total_unit_price = Decimal("0")
+    total_gst = Decimal("0")
+    
+    if items_list:
+        # Structured Mode (New)
+        for i, item in enumerate(items_list):
+            item_name = item.get('name')
+            qty = Decimal(str(item.get('qty', 1)))
+            price_each = Decimal(str(item.get('price', 0)))
+            rate = Decimal(str(item.get('gst_rate', 0)))
+            item_total = Decimal(str(item.get('total', 0)))
+            hsn = item.get('hsn', '9983')
+            
+            item_base_total = price_each * qty
+            item_gst_amt = item_total - item_base_total
+            
+            total_unit_price += item_base_total
+            total_gst += item_gst_amt
+            
+            c.drawString(45, row_y, str(i + 1))
+            c.drawString(65, row_y, item_name[:42])
+            c.drawString(265, row_y, str(hsn))
+            c.drawString(320, row_y, str(qty))
+            c.drawString(355, row_y, "Nos")
+            c.drawString(400, row_y, f"{price_each:,.2f}")
+            c.drawString(470, row_y, f"{rate}%")
+            c.drawString(520, row_y, f"{item_total:,.2f}")
+            row_y -= 20
+    else:
+        # Fallback for old/manual without list 
+        hsn, rate = get_hsn_details(products_raw)
+        item_base = total_raw / (1 + (rate / 100))
+        item_gst = total_raw - item_base
+        total_unit_price = item_base
+        total_gst = item_gst
+        
+        c.drawString(45, row_y, "1")
+        c.drawString(65, row_y, products_raw[:42])
+        c.drawString(265, row_y, str(hsn))
+        c.drawString(320, row_y, "1")
+        c.drawString(355, row_y, "Nos")
+        c.drawString(400, row_y, f"{item_base:,.2f}")
+        c.drawString(470, row_y, f"{rate}%")
+        c.drawString(520, row_y, f"{total_raw:,.2f}")
     
     rounded_total = round(total_raw)
     round_off = rounded_total - total_raw
-
-    c.drawString(55, row_y, "1")
-    c.drawString(75, row_y, str(transaction.get('product'))[:35])
-    c.drawString(190, row_y, str(transaction.get('hsn_code')))
-    c.drawString(250, row_y, "1")
-    c.drawString(310, row_y, "Nos")
-    c.drawString(360, row_y, f"{unit_price:,.2f}")
-    c.drawString(430, row_y, f"{rate}%")
-    c.drawString(490, row_y, f"{total_raw:,.2f}")
     
     # --- Footer Calculations ---
-    calc_y = row_y - 40
+    calc_y = row_y - 20 
     c.setFont("Helvetica", 10)
     c.drawString(50, calc_y, "Invoice Amount In Words")
     c.setFont("Helvetica-Bold", 9)
-    # Simple amount in words mock
-    c.drawString(50, calc_y - 12, "Rupees only") # Placeholder
+    c.drawString(50, calc_y - 12, num_to_words(rounded_total))
     
-    c.drawRightString(450, calc_y, "Sub Total")
-    c.drawRightString(580, calc_y, f"{unit_price:,.2f}")
+    c.drawRightString(450, calc_y, "Sub Total (Excl. Tax)")
+    c.drawRightString(580, calc_y, f"{total_unit_price:,.2f}")
     
-    c.drawRightString(450, calc_y - 15, f"SGST@{rate/2}%")
-    c.drawRightString(580, calc_y - 15, f"{sgst:,.2f}")
+    row_offset = 15
+    if gst_breakdown:
+        for gd in gst_breakdown:
+            rate = gd.get('rate')
+            cgst = gd.get('cgst')
+            sgst = gd.get('sgst')
+            if val := gd.get('total', 0) > 0:
+                c.drawRightString(450, calc_y - row_offset, f"SGST@{rate/2}%")
+                c.drawRightString(580, calc_y - row_offset, f"{sgst:,.2f}")
+                row_offset += 15
+                c.drawRightString(450, calc_y - row_offset, f"CGST@{rate/2}%")
+                c.drawRightString(580, calc_y - row_offset, f"{cgst:,.2f}")
+                row_offset += 15
+    else:
+        # Fallback split
+        c.drawRightString(450, calc_y - 15, f"SGST Split")
+        c.drawRightString(580, calc_y - 15, f"{total_gst/2:,.2f}")
+        c.drawRightString(450, calc_y - 30, f"CGST Split")
+        c.drawRightString(580, calc_y - 30, f"{total_gst/2:,.2f}")
+        row_offset = 45
+
+    if shipping > 0:
+        c.drawRightString(450, calc_y - row_offset, "Shipping Charges")
+        c.drawRightString(580, calc_y - row_offset, f"{shipping:,.2f}")
+        row_offset += 15
+
+    c.drawRightString(450, calc_y - row_offset, "Round off")
+    c.drawRightString(580, calc_y - row_offset, f"{round_off:,.2f}")
     
-    c.drawRightString(450, calc_y - 30, f"CGST@{rate/2}%")
-    c.drawRightString(580, calc_y - 30, f"{cgst:,.2f}")
-    
-    c.drawRightString(450, calc_y - 45, "Round off")
-    c.drawRightString(580, calc_y - 45, f"{round_off:,.2f}")
-    
-    # Total Box - Added 20px gap from Round off
+    # Total Box
     c.setFillColorRGB(*branding_color)
-    c.rect(400, calc_y - 85, 190, 20, fill=1, stroke=0)
+    c.rect(400, calc_y - row_offset - 30, 190, 22, fill=1, stroke=0)
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(410, calc_y - 79, "Total")
-    c.drawRightString(580, calc_y - 79, f"{rounded_total:,.2f}")
+    c.drawString(410, calc_y - row_offset - 24, "Grand Total")
+    c.drawRightString(580, calc_y - row_offset - 24, f"₹{rounded_total:,.2f}")
     
+    # Bottom Summary
     c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica", 10)
-    c.drawRightString(450, calc_y - 100, "Received")
-    c.drawRightString(580, calc_y - 100, f"{rounded_total:,.2f}")
-    c.drawRightString(450, calc_y - 115, "Balance")
-    c.drawRightString(580, calc_y - 115, "0.00")
+    summary_y = calc_y - row_offset - 60
+    c.drawRightString(450, summary_y, "Received")
+    c.drawRightString(580, summary_y, f"{rounded_total:,.2f}")
+    c.drawRightString(450, summary_y - 15, "Balance")
+    c.drawRightString(580, summary_y - 15, "0.00")
     
-    # Lines
-    c.setLineWidth(0.5)
-    c.setStrokeColorRGB(0.8, 0.8, 0.8)
-    c.line(50, row_y - 15, width - 50, row_y - 15)
     
     # Signatory
     sign_y = 100

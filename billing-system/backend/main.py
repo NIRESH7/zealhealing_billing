@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from fastapi.staticfiles import StaticFiles
-from routers import auth, transactions, dashboard
+from routers import auth, transactions, dashboard, products
 
 app = FastAPI(title="Billing System API")
 
@@ -26,6 +26,7 @@ def read_root():
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(products.router, prefix="/api/products", tags=["products"])
 
 # Mount uploads dir
 os.makedirs("uploads", exist_ok=True)

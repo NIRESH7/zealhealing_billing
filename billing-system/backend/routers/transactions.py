@@ -1,12 +1,14 @@
 import io
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import List
-from datetime import datetime
+from datetime import datetime, date as date_type
+from decimal import Decimal
 from bson import ObjectId
 from database import get_db
 from models import TransactionCreate, TransactionDB
 from auth import get_current_user
-from utils import generate_invoice_pdf, send_whatsapp_invoice
+from utils import generate_invoice_pdf, send_whatsapp_invoice, get_hsn_details
+from ai_utils import get_smart_product_match
 import uuid
 import shutil
 import os
@@ -20,6 +22,45 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @router.post("/manual")
 async def create_transaction_manual(transaction: TransactionCreate, db=Depends(get_db), current_user=Depends(get_current_user)):
     tx_dict = transaction.model_dump()
+    
+    # If it's a single product manual entry, structure it for generate_invoice_pdf
+    if not tx_dict.get("invoice_items"):
+        # CASE-INSENSITIVE MATCH
+        product = await db.products.find_one({"name": {"$regex": f"^{re.escape(tx_dict['product'])}$", "$options": "i"}})
+        if not product:
+            raise HTTPException(status_code=400, detail=f"Product '{tx_dict['product']}' (Case Insensitive) not found.")
+        
+        location = tx_dict.get("location", "India")
+        price = Decimal(str(product["price_india"] if location == "India" else product["price_abroad"]))
+        if price <= 0:
+            raise HTTPException(status_code=400, detail=f"Product '{tx_dict['product']}' has 0 price. Blocked.")
+        
+        gst_rate = Decimal(str(product["gst_rate"] if location == "India" else 0))
+        
+        qty = Decimal("1")
+        item_subtotal = price * qty
+        gst_amount = item_subtotal * gst_rate / 100
+        item_total = item_subtotal + gst_amount
+        
+        tx_dict["invoice_items"] = [{
+            "name": product["name"],
+            "qty": int(qty),
+            "price": float(price),
+            "gst_rate": float(gst_rate),
+            "gst_amount": float(gst_amount),
+            "total": float(item_total),
+            "hsn": product.get("hsn_code", "9983")
+        }]
+        tx_dict["gst_breakdown"] = [{
+            "rate": float(gst_rate),
+            "cgst": float(gst_amount/2),
+            "sgst": float(gst_amount/2),
+            "total": float(gst_amount)
+        }]
+        tx_dict["amount"] = float(item_subtotal)
+        tx_dict["gst_total"] = float(gst_amount)
+        tx_dict["total_amount"] = float(item_total)
+    
     tx_dict["status"] = "Pending"
     tx_dict["timestamp"] = datetime.utcnow()
     tx_dict["added_by"] = current_user["username"]
@@ -32,6 +73,12 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
     
     result = await db.transactions.insert_one(tx_dict)
     tx_dict["id"] = str(result.inserted_id)
+    
+    # Generate Invoice immediately
+    invoice_url = generate_invoice_pdf(tx_dict)
+    await db.transactions.update_one({"_id": result.inserted_id}, {"$set": {"invoice_url": invoice_url}})
+    tx_dict["invoice_url"] = invoice_url
+    
     return tx_dict
 
 @router.post("/upload")
@@ -46,102 +93,180 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
         
         all_transactions = []
         batch_id = str(uuid.uuid4())
-        gst_map = {"9997": 5.0, "7103": 0.25, "7106": 3.0, "9983": 18.0}
         
         for sheet in wb.worksheets:
             rows = list(sheet.iter_rows(values_only=False))
             if not rows: continue
             
-            # Use Static 0-5 Mirror Mapping as per user request
-            col_map = {"date": 0, "name": 1, "phone": 2, "transaction_id": 3, "amount": 4, "product": 5}
+            # Check for New Format headers
+            header_vals = [str(c.value).lower() for c in rows[0]]
+            is_new_format = "location" in header_vals and "items" in header_vals
             
-            # Find the first row that actually has data (to skip empty headers/logos)
-            start_idx = 0
-            for i, row in enumerate(rows):
-                if any(c.value for c in row):
-                    # Check if this looks like a header or data
-                    test_val = str(row[1].value or "").lower()
-                    if "name" in test_val or "customer" in test_val:
-                        start_idx = i + 1
-                    else:
-                        start_idx = i
-                    break
+            if is_new_format:
+                col_map = {
+                    "date": header_vals.index("date"),
+                    "name": header_vals.index("name"),
+                    "phone": header_vals.index("phone"),
+                    "location": header_vals.index("location"),
+                    "items": header_vals.index("items"),
+                    "shipping": header_vals.index("shipping") if "shipping" in header_vals else -1,
+                    "transaction_id": header_vals.index("txn id") if "txn id" in header_vals else header_vals.index("transaction_id") if "transaction_id" in header_vals else 6
+                }
+                start_idx = 1
+            else:
+                # Old Mirror Mapping
+                col_map = {"date": 0, "name": 1, "phone": 2, "transaction_id": 3, "amount": 4, "product": 5}
+                start_idx = 0
+                # (Existing header detection logic for old format remains...)
+                for i, row in enumerate(rows):
+                    if any(c.value for c in row):
+                        test_val = str(row[1].value or "").lower()
+                        if "name" in test_val or "customer" in test_val:
+                            start_idx = i + 1
+                        else:
+                            start_idx = i
+                        break
 
-            current_date = "-" # Sticky date initiation
+            current_date = "-" 
             
-            # PRE-SCAN for a date in the top of the sheet
-            for i in range(min(15, len(rows))):
-                for cell in rows[i]:
-                    if cell.value and hasattr(cell.value, "strftime"):
-                        current_date = cell.value.strftime('%d/%m/%y')
-                        break
-                    elif cell.value and re.match(r'^\d{1,2}/\d{1,2}/\d{2,4}', str(cell.value)):
-                        current_date = str(cell.value).strip()
-                        break
-                if current_date != "-": break
-
             for row in rows[start_idx:]:
-                if not any(c.value for c in row): continue # Skip empty rows
+                if not any(c.value for c in row): continue 
                 
-                # 1. Capture Sticky Date (Column 0)
-                d_cell = row[col_map["date"]].value
+                # 1. Capture Sticky Date
+                d_cell = row[col_map["date"]].value if len(row) > col_map["date"] else None
                 if d_cell:
                     if hasattr(d_cell, "strftime"):
                         current_date = d_cell.strftime('%d/%m/%y')
-                    else:
-                        s_d = str(d_cell).strip()
-                        if re.match(r'^\d{1,2}/\d{1,2}/\d{2,4}', s_d):
-                            current_date = s_d
+                    elif re.match(r'^\d{1,2}/\d{1,2}/\d{2,4}', str(d_cell)):
+                        current_date = str(d_cell).strip()
 
-                # 2. Extract Values using .value ONLY
-                raw_name = str(row[col_map["name"]].value or "").strip()
-                raw_phone = str(row[col_map["phone"]].value or "").strip()
-                raw_tx_id = str(row[col_map["transaction_id"]].value or "").strip()
-                raw_amt = str(row[col_map["amount"]].value or "0")
-                product = str(row[col_map["product"]].value or "").strip()
-
-                if not raw_name or raw_name.lower() in ["none", "nan", "total", "balance", "customer name"]:
-                    continue
-
-                # 3. Clean and Format
+                # 2. Extract Identity
+                raw_name = str(row[col_map["name"]].value if len(row) > col_map["name"] else "").strip()
+                raw_phone = str(row[col_map["phone"]].value if len(row) > col_map["phone"] else "").strip()
+                raw_tx_id = str(row[col_map["transaction_id"]].value if len(row) > col_map["transaction_id"] else "").strip()
+                
+                if not raw_name or raw_name.lower() in ["none", "nan", "total", "customer name"]: continue
+                
                 phone = "".join(re.findall(r'\d+', raw_phone))
                 if len(phone) > 12: phone = phone[:12]
                 if not phone: continue
 
-                numeric_amt = "".join(re.findall(r'[0-9.]+', raw_amt))
-                try:
-                    amount = float(numeric_amt) if numeric_amt else 0.0
-                except: amount = 0.0
-                if amount <= 0: continue
+                # 3. Handle Product & Pricing Logic (USER Logic Implementation)
+                items_str = ""
+                location = "India"
+                shipping = 0
+                
+                if is_new_format:
+                    location = str(row[col_map["location"]].value or "India").strip().capitalize()
+                    items_str = str(row[col_map["items"]].value or "").strip()
+                    shipping = float(row[col_map["shipping"]].value or 0) if col_map["shipping"] != -1 else 0
+                else:
+                    # Old Format fallback
+                    items_str = str(row[col_map["product"]].value or "").strip()
+                    location = "India"
+                    shipping = 0
+
+                # --- Calculation Engine (Decimal High Precision) ---
+                parsed_items = []
+                for part in items_str.split(","):
+                    part = part.strip()
+                    if not part: continue
+                    match = re.match(r"(.*)\((\d+)\)", part)
+                    if match:
+                        name = match.group(1).strip()
+                        qty = Decimal(match.group(2))
+                        parsed_items.append((name, qty))
+                    else:
+                        parsed_items.append((part, Decimal("1")))
+
+                invoice_items_details = []
+                subtotal = Decimal("0")
+                total_gst = Decimal("0")
+                gst_summary = {} 
+
+                # Cache product names for AI matching
+                cursor = db.products.find({}, {"name": 1})
+                all_product_names = [p["name"] for p in await cursor.to_list(length=1000)]
+
+                for item_name, qty in parsed_items:
+                    # 1. Try Exact/Case-Insensitive Match
+                    product = await db.products.find_one({"name": {"$regex": f"^{re.escape(item_name)}$", "$options": "i"}})
+                    
+                    if not product:
+                        # 2. SMART AI FALLBACK
+                        suggested_name = await get_smart_product_match(item_name, all_product_names)
+                        if suggested_name:
+                            product = await db.products.find_one({"name": suggested_name})
+                    
+                    if not product:
+                        raise HTTPException(status_code=400, detail=f"Product '{item_name}' not found.")
+                    
+                    price = Decimal(str(product["price_india"] if location == "India" else product["price_abroad"]))
+                    # STRICT RULE: Abroad = 0% GST
+                    gst_rate = Decimal(str(product["gst_rate"] if location == "India" else 0))
+                    
+                    # Rounding each step
+                    item_subtotal = (price * qty).quantize(Decimal("0.01"))
+                    gst_amount = (item_subtotal * gst_rate / 100).quantize(Decimal("0.01"))
+                    item_total = item_subtotal + gst_amount
+                    
+                    subtotal += item_subtotal
+                    total_gst += gst_amount
+                    
+                    # Split for India
+                    if location == "India":
+                        cgst = (gst_amount / 2).quantize(Decimal("0.01"))
+                        sgst = gst_amount - cgst # Ensures sum = total_gst
+                    else:
+                        cgst = Decimal("0")
+                        sgst = Decimal("0")
+
+                    # Grouping
+                    gst_key = float(gst_rate)
+                    gst_summary[gst_key] = gst_summary.get(gst_key, 0) + float(gst_amount)
+                    
+                    invoice_items_details.append({
+                        "name": product["name"],
+                        "qty": int(qty),
+                        "price": float(price),
+                        "gst_rate": float(gst_rate),
+                        "gst_amount": float(gst_amount),
+                        "total": float(item_total.quantize(Decimal("0.01"))),
+                        "hsn": product.get("hsn_code", "9983")
+                    })
+
+                grand_total = subtotal + total_gst + Decimal(str(shipping)).quantize(Decimal("0.01"))
+                
+                gst_breakdown = []
+                for rate, val in gst_summary.items():
+                    gst_breakdown.append({
+                        "rate": rate,
+                        "cgst": val / 2,
+                        "sgst": val / 2,
+                        "total": val
+                    })
 
                 # Clean Transaction ID
                 first_id = raw_tx_id.split("\n")[0].split("\r")[0].strip()
                 clean_tx_id = "".join([c if c.isalnum() else "_" for c in first_id]).upper()[:30]
                 if not clean_tx_id or clean_tx_id.lower() in ["nan", "total"]: continue
 
-                # 4. HSN Logic (Invisible to user)
-                hsn = "9983"
-                p_lower = product.lower()
-                if "reiki" in p_lower: hsn = "9997"
-                elif any(w in p_lower for w in ["crystal", "bracelet", "tumble", "zibu", "pyramid", "selenite"]): hsn = "7103"
-                elif "silver" in p_lower: hsn = "7106"
-
-                rate = gst_map.get(hsn, 18.0)
                 existing = await db.transactions.find_one({"transaction_id": clean_tx_id})
 
-                # 5. Build Final Mirror Object
+                # 4. Build Record
                 tx_obj = {
                     "name": raw_name,
                     "phone": phone,
                     "transaction_id": clean_tx_id,
-                    "amount": amount, # Match Excel
-                    "product": product, # Match Excel
-                    "date": current_date, # Sticky Date Match
-                    "hsn_code": hsn,
-                    "gst_rate": rate,
-                    "total_amount": amount, # Mirror Mirror
-                    "excel_row_index": start_idx + i, # Preserve Order
-                    "is_duplicate": True if existing else False,
+                    "amount": float(subtotal), 
+                    "product": items_str, 
+                    "date": current_date, 
+                    "location": location,
+                    "invoice_items": invoice_items_details,
+                    "gst_breakdown": gst_breakdown,
+                    "shipping": float(shipping),
+                    "gst_total": float(total_gst),
+                    "total_amount": float(grand_total),
                     "status": "Verified",
                     "timestamp": datetime.utcnow(),
                     "added_by": current_user["username"],

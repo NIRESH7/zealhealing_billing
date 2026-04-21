@@ -4,53 +4,158 @@ import api from '../services/api';
 import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown } from 'lucide-react';
 
 // --- Simplified Edit Modal (SaaS Style) ---
-function EditModal({ tx, onClose, onSave }) {
-  const [formData, setFormData] = useState({ ...tx });
+// --- SaaS Multi-Product Search & Bill Creator ---
+function CreateModal({ onClose, onSave }) {
+  const [formData, setFormData] = useState({
+    name: '', phone: '', transaction_id: '', amount: 0, product: '', 
+    region: 'India', date: new Date().toLocaleDateString('en-GB'),
+    gst_rate: 0, cgst: 0, sgst: 0, total_amount: 0, hsn_code: ''
+  });
+  const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (search.length > 1) {
+      api.get('/products', { params: { search } }).then(res => setProducts(res.data));
+    }
+  }, [search]);
+
+  const selectProduct = (p) => {
+    const price = formData.region === 'India' ? p.price_india : p.price_abroad;
+    const gstRate = formData.region === 'India' ? p.gst_rate : 0;
+    const gstAmt = price * (gstRate / 100);
+    
+    setFormData({
+      ...formData,
+      product: p.name,
+      amount: price,
+      gst_rate: gstRate,
+      cgst: gstAmt / 2,
+      sgst: gstAmt / 2,
+      total_amount: price + gstAmt,
+      hsn_code: p.hsn_code || ''
+    });
+    setSearch(p.name);
+    setShowSuggestions(false);
+  };
+
+  const calculate = (region) => {
+    // If we have a product selected, re-calc based on region
+    const p = products.find(prod => prod.name === formData.product);
+    if (p) {
+      const price = region === 'India' ? p.price_india : p.price_abroad;
+      const gstRate = region === 'India' ? p.gst_rate : 0;
+      const gstAmt = price * (gstRate / 100);
+      setFormData(prev => ({
+        ...prev,
+        region,
+        amount: price,
+        gst_rate: gstRate,
+        cgst: gstAmt / 2,
+        sgst: gstAmt / 2,
+        total_amount: price + gstAmt
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, region }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.put(`/transactions/${tx.id}`, formData);
+      await api.post('/transactions/manual', formData);
       onSave();
-    } catch (err) { alert('Update failed'); }
+    } catch (err) { alert('Creation failed'); }
     finally { setLoading(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-[4px]">
-      <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+    <div className="fixed inset-0 z-[101] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+      <div className="bg-white w-full max-w-2xl rounded-[32px] border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-white">
           <div>
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-none">Modify Entry</h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ref ID: {tx.transaction_id || tx.id}</p>
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">Generate Smart Bill</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Manual Ledger Entry Process</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200/50 rounded-xl text-slate-400 transition-all"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all"><X className="w-6 h-6" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+        
+        <form onSubmit={handleSubmit} className="p-10 space-y-8">
+          <div className="grid grid-cols-2 gap-8">
             <div className="col-span-2">
-              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Customer Name</label>
-              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+               <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
+                  {['India', 'Abroad'].map(r => (
+                    <button 
+                      key={r} type="button"
+                      onClick={() => calculate(r)}
+                      className={`px-8 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.region === r ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+               </div>
             </div>
-            <div>
-              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Contact Identity</label>
-              <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+
+            <div className="col-span-2 relative">
+              <label className="text-[11px] font-black text-slate-400 mb-3 block uppercase tracking-widest">Search Product / Service</label>
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+                <input 
+                  type="text" value={search} onChange={(e) => { setSearch(e.target.value); setShowSuggestions(true); }}
+                  onFocus={() => setShowSuggestions(true)}
+                  className="w-full pl-11 pr-4 py-4 text-[14px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-600/10 outline-none transition-all"
+                  placeholder="Type product name (Tarot, Crystal...)"
+                />
+              </div>
+              {showSuggestions && products.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl p-2 z-[110] max-h-60 overflow-y-auto">
+                   {products.map(p => (
+                     <div key={p.id} onClick={() => selectProduct(p)} className="p-3 hover:bg-indigo-50 rounded-xl cursor-pointer flex justify-between items-center group transition-all">
+                        <span className="text-[13px] font-bold text-slate-700 group-hover:text-indigo-600">{p.name}</span>
+                        <div className="flex items-center gap-3">
+                           <span className="text-[10px] font-black text-slate-300 uppercase tracking-tight">{p.category}</span>
+                           <span className="text-[11px] font-black text-indigo-600">₹{formData.region === 'India' ? p.price_india : p.price_abroad}</span>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              )}
             </div>
-            <div>
-              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Revenue Status</label>
-              <input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+
+            <div className="space-y-6">
+               <div>
+                  <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Customer Name</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/10 outline-none" placeholder="Enter name" />
+               </div>
+               <div>
+                  <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Contact Identity</label>
+                  <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/10 outline-none" placeholder="WhatsApp Number" />
+               </div>
             </div>
-            <div className="col-span-2">
-              <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Product / Memo</label>
-              <textarea value={formData.product} onChange={e => setFormData({...formData, product:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all resize-none" rows="2" />
+
+            <div className="space-y-6">
+               <div>
+                  <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">GPay/Ref ID</label>
+                  <input required type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/10 outline-none placeholder:uppercase" placeholder="TXN123456" />
+               </div>
+               <div className="bg-indigo-600/5 p-6 rounded-[24px] border border-indigo-100/50">
+                  <div className="flex justify-between items-center mb-2">
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Total</span>
+                     <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded italic">GST {formData.gst_rate}%</span>
+                  </div>
+                  <div className="text-3xl font-black text-indigo-600 tracking-tighter">₹{formData.total_amount.toLocaleString()}</div>
+                  <p className="text-[10px] font-bold text-slate-400 mt-2 italic">Base: ₹{formData.amount} | Tax: ₹{formData.cgst + formData.sgst}</p>
+               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-            <button type="button" onClick={onClose} className="px-5 py-2.5 text-[11px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">Discard</button>
-            <button type="submit" disabled={loading} className="px-6 py-2.5 text-[11px] font-black bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all uppercase tracking-widest disabled:opacity-50">
-              {loading ? 'Processing...' : 'Sync Updates'}
+
+          <div className="flex justify-end gap-4 pt-6 border-t border-slate-100">
+            <button type="button" onClick={onClose} className="px-8 py-3.5 text-[11px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">Abort</button>
+            <button type="submit" disabled={loading} className="px-12 py-3.5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-600 shadow-2xl shadow-indigo-100 transition-all disabled:opacity-50">
+              {loading ? 'Processing...' : 'Verify & Generate Bill'}
             </button>
           </div>
         </form>
@@ -72,8 +177,9 @@ export default function Transactions() {
   const [latestBatchOnly, setLatestBatchOnly] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [singleBill, setSingleBill] = useState(null);
-  const [activeTx, setActiveTx] = useState(null); // Track active tx for regeneration
+  const [activeTx, setActiveTx] = useState(null); 
   const [generatingId, setGeneratingId] = useState(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -127,6 +233,7 @@ export default function Transactions() {
   return (
     <>
       {editingTx && <EditModal tx={editingTx} onClose={() => setEditingTx(null)} onSave={() => { setEditingTx(null); fetchTransactions(); }} />}
+      {isCreateModalOpen && <CreateModal onClose={() => setIsCreateModalOpen(false)} onSave={() => { setIsCreateModalOpen(false); fetchTransactions(); }} />}
       
       {singleBill && (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[6px] flex items-center justify-center p-6 lg:p-12">
@@ -178,6 +285,13 @@ export default function Transactions() {
               className={`px-5 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-xl border transition-all ${latestBatchOnly ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-900 shadow-sm'}`}
             >
               LATEST SIGNAL
+            </button>
+            <button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-6 py-2.5 text-[11px] font-black uppercase tracking-widest bg-indigo-600 shadow-xl shadow-indigo-100 text-white rounded-xl hover:bg-slate-900 transition-all flex items-center gap-3"
+            >
+              <Plus className="w-4 h-4" />
+              Direct Entry
             </button>
             <button className="px-5 py-2.5 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 rounded-xl hover:border-indigo-200 hover:text-indigo-600 shadow-sm transition-all">Export XLSX</button>
             <button onClick={handleWipeAll} className="px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-400 hover:bg-rose-50 rounded-xl transition-all">Wipe Logs</button>

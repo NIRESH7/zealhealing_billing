@@ -35,6 +35,11 @@ class TransactionCreate(BaseModel):
     date: Optional[str] = None
     hsn_code: Optional[str] = None
     qty: int = 1
+    region: str = "India" # India or Abroad
+    gst_rate: float = 0
+    cgst: float = 0
+    sgst: float = 0
+    total_amount: float = 0
 
 class TransactionDB(TransactionCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
@@ -54,3 +59,16 @@ class CustomerDB(BaseModel):
     phone: str
     total_spent: float = 0
     total_transactions: int = 0
+
+class ProductCreate(BaseModel):
+    name: str
+    category: str
+    sub_category: Optional[str] = None
+    price_india: float
+    price_abroad: float
+    gst_rate: float
+    hsn_code: Optional[str] = None
+    is_service: bool = False
+
+class ProductDB(ProductCreate):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)

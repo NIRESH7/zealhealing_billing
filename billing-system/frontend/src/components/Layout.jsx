@@ -35,7 +35,7 @@ export default function Layout() {
     { name: 'Upload', path: '/upload', icon: Layers }, 
     { name: 'Analytics', path: '/transactions', icon: BarChart3 }, 
     { name: 'Reports', path: '/reports', icon: FileText },
-    { name: 'DB', path: '/db', icon: Database },
+    { name: 'Products', path: '/products', icon: Database },
   ];
 
   const getPageTitle = () => {
