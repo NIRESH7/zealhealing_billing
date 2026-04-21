@@ -15,6 +15,8 @@ async def create_product(product: ProductCreate, db=Depends(get_db), current_use
     product_dict = product.model_dump()
     result = await db.products.insert_one(product_dict)
     product_dict["id"] = str(result.inserted_id)
+    if "_id" in product_dict:
+        del product_dict["_id"]
     return product_dict
 
 @router.get("/")

@@ -34,7 +34,6 @@ export default function Layout() {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Upload', path: '/upload', icon: Layers }, 
     { name: 'Analytics', path: '/transactions', icon: BarChart3 }, 
-    { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Products', path: '/products', icon: Database },
   ];
 
@@ -44,68 +43,69 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F8F9FA] font-sans text-[#1A1C1E]">
+    <div className="flex h-screen bg-[#ffffff] font-sans text-slate-700">
       {/* Sidebar */}
-      <aside className={`flex flex-col bg-white border-r border-[#E0E2E5] transition-all duration-300 ease-in-out ${isCollapsed ? 'w-[80px]' : 'w-[260px]'}`}>
-        <div className={`flex items-center h-[80px] transition-all duration-300 ${isCollapsed ? 'justify-center px-0' : 'px-8 justify-between'}`}>
+      <aside className={`flex flex-col bg-white border-r border-slate-100 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-[72px]' : 'w-[240px]'}`}>
+        <div className={`flex items-center h-24 transition-all duration-300 ${isCollapsed ? 'justify-center px-0' : 'px-8 justify-between'}`}>
           {!isCollapsed && (
-            <div className="flex items-center gap-2 animate-in fade-in duration-500">
-              <div className="w-2 h-6 bg-indigo-600 rounded-full" />
-              <span className="text-xl font-black tracking-tighter text-slate-900 whitespace-nowrap uppercase">Zeal Healing</span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] overflow-hidden border border-slate-50">
+                <img src="/logo.png" alt="Logo" className="w-[85%] h-[85%] object-contain" />
+              </div>
+              <span className="text-[13px] font-black tracking-tighter text-slate-900 uppercase">Zeal Healing</span>
             </div>
           )}
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`p-2 rounded-xl hover:bg-slate-50 text-slate-400 transition-all ${isCollapsed ? 'bg-indigo-50 text-indigo-600 shadow-sm shadow-indigo-100' : ''}`}
+            className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 transition-all"
           >
-            <Layers className={`w-5 h-5 transition-transform duration-500 ${isCollapsed ? 'rotate-180' : ''}`} />
+            <Layers className="w-4 h-4" />
           </button>
         </div>
         
         {!isCollapsed && (
-          <div className="px-8 mt-6 mb-2 animate-in slide-in-from-left-2 duration-300">
-              <p className="text-[10px] font-black text-slate-400 tracking-[0.3em] uppercase">Executive Access</p>
-              <p className="text-[12px] font-bold text-slate-900 italic">System Administrator</p>
+          <div className="px-8 mt-4 mb-2">
+              <p className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase">Administrator</p>
           </div>
         )}
 
-        <nav className={`flex-1 mt-8 space-y-1.5 transition-all ${isCollapsed ? 'px-3' : 'px-4'}`}>
+        <nav className={`flex-1 mt-6 space-y-1 transition-all ${isCollapsed ? 'px-2' : 'px-4'}`}>
           {navItems.map((item) => (
             <NavLink
               key={item.name}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center rounded-xl font-bold transition-all duration-300 overflow-hidden ${
-                  isCollapsed ? 'justify-center w-12 h-12 mx-auto' : 'px-4 py-2.5 gap-4'
+                `flex items-center rounded-lg font-medium transition-all duration-200 ${
+                  isCollapsed ? 'justify-center w-10 h-10 mx-auto' : 'px-4 py-2 gap-3'
                 } ${
                   isActive
-                    ? 'bg-indigo-50 text-indigo-600 shadow-sm ring-1 ring-indigo-100/50'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                    ? 'bg-slate-50 text-slate-900'
+                    : 'text-slate-500 hover:bg-slate-50/50 hover:text-slate-900'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <item.icon className={`w-[18px] h-[18px] shrink-0 transition-colors`} strokeWidth={isActive ? 3 : 2.5} />
-                  {!isCollapsed && <span className="text-[13px] animate-in fade-in slide-in-from-left-4 duration-500">{item.name}</span>}
+                  <item.icon className="w-4 h-4 shrink-0 transition-colors" strokeWidth={isActive ? 2.5 : 2} />
+                  {!isCollapsed && <span className="text-[13px]">{item.name}</span>}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
 
-        <div className={`pb-8 space-y-1.5 grayscale hover:grayscale-0 transition-all duration-500 ${isCollapsed ? 'px-3' : 'px-4'}`}>
+        <div className={`pb-8 space-y-1 ${isCollapsed ? 'px-2' : 'px-4'}`}>
            {isWaModalOpen && <WhatsAppLinkModal onClose={() => setIsWaModalOpen(false)} />}
-           <button onClick={() => setIsWaModalOpen(true)} className={`flex items-center rounded-xl font-bold text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all text-left ${isCollapsed ? 'justify-center w-12 h-12 mx-auto' : 'px-4 py-2.5 gap-4 w-full'}`}>
-              <Smartphone className="w-[18px] h-[18px] shrink-0" strokeWidth={2.5} />
-              {!isCollapsed && <span className="text-[13px] animate-in fade-in duration-500">Sync Data</span>}
+           <button onClick={() => setIsWaModalOpen(true)} className={`flex items-center rounded-lg font-medium text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all text-left ${isCollapsed ? 'justify-center w-10 h-10 mx-auto' : 'px-4 py-2 gap-3 w-full'}`}>
+              <Smartphone className="w-4 h-4 shrink-0" strokeWidth={2} />
+              {!isCollapsed && <span className="text-[13px]">Sync</span>}
            </button>
            <button 
              onClick={handleLogout}
-             className={`flex items-center rounded-xl font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-all text-left ${isCollapsed ? 'justify-center w-12 h-12 mx-auto' : 'px-4 py-2.5 gap-4 w-full'}`}
+             className={`flex items-center rounded-lg font-medium text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-all text-left ${isCollapsed ? 'justify-center w-10 h-10 mx-auto' : 'px-4 py-2 gap-3 w-full'}`}
            >
-              <LogOut className="w-[18px] h-[18px] shrink-0" strokeWidth={2.5} />
-              {!isCollapsed && <span className="text-[13px] animate-in fade-in duration-500">Disconnect</span>}
+              <LogOut className="w-4 h-4 shrink-0" strokeWidth={2} />
+              {!isCollapsed && <span className="text-[13px]">Logout</span>}
            </button>
         </div>
       </aside>
@@ -113,30 +113,29 @@ export default function Layout() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-[72px] flex items-center justify-between bg-white border-b border-[#E0E2E5] px-8 shrink-0">
-          <div className="flex items-center flex-1 max-w-md">
+        <header className="h-[72px] flex items-center justify-between bg-white border-b border-slate-100 px-8 shrink-0">
+          <div className="flex items-center flex-1 max-w-sm">
             <div className="relative w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#74777F]" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input 
                     type="text" 
-                    placeholder="Search resources..."
-                    className="w-full bg-[#F1F3F9] border-none rounded-lg py-2.5 pl-11 pr-4 text-sm focus:ring-2 focus:ring-[#4448D4]/20 outline-none placeholder-[#74777F]"
+                    placeholder="Search..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 pl-10 pr-4 text-[13px] focus:bg-white focus:border-slate-400 outline-none placeholder-slate-400"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
           </div>
           
-          <div className="flex items-center gap-6 ml-4">
-              <button className="text-[#44474E] hover:text-[#1A1C1E] transition-colors relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+          <div className="flex items-center gap-5 ml-4">
+              <button className="text-slate-400 hover:text-slate-900 transition-colors">
+                <Bell className="w-4 h-4" />
               </button>
-              <button onClick={() => navigate('/settings')} className="text-[#44474E] hover:text-[#1A1C1E] transition-colors">
-                <SettingsIcon className="w-5 h-5" />
+              <button onClick={() => navigate('/settings')} className="text-slate-400 hover:text-slate-900 transition-colors">
+                <SettingsIcon className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-3 pl-2 border-l border-[#E0E2E5]">
-                 <div className="w-9 h-9 rounded-lg bg-[#4448D4] text-white flex items-center justify-center font-bold text-sm">
+              <div className="flex items-center gap-3 pl-5 border-l border-slate-100">
+                 <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[12px]">
                     {user?.username?.charAt(0).toUpperCase()}
                  </div>
               </div>

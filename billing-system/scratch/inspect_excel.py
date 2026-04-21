@@ -1,12 +1,16 @@
 import openpyxl
 import os
 
-file_path = r"c:\Users\Admin\Desktop\zeal healing\BILLING_WEB\billing-system\cleaned_excel.xlsx"
-if os.path.exists(file_path):
-    wb = openpyxl.load_workbook(file_path, data_only=True)
-    sheet = wb.active
-    for i, row in enumerate(sheet.iter_rows(values_only=True)):
-        print(row)
-        if i > 10: break
-else:
-    print("File not found")
+folder = r"c:\Users\prane\Desktop\zeal_healing(web)\BILLING_WEB\billing-system"
+files = [f for f in os.listdir(folder) if f.endswith('.xlsx')]
+
+for f in files:
+    path = os.path.join(folder, f)
+    print(f"\n--- {f} ---")
+    try:
+        wb = openpyxl.load_workbook(path, data_only=True)
+        sheet = wb.active
+        for row in sheet.iter_rows(max_row=3, values_only=True):
+            print(row)
+    except Exception as e:
+        print(f"Error reading {f}: {e}")

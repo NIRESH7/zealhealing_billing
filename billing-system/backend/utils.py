@@ -64,12 +64,15 @@ def generate_invoice_pdf(transaction: dict):
     width, height = letter
     
     # Draw Logo at top right
-    logo_path = r"c:\Users\Admin\Desktop\zeal healing\BILLING_WEB\billing-system\1003648003.png"
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    logo_path = os.path.join(base_dir, "1003648003.png")
+    
     if os.path.exists(logo_path):
         try:
-            c.drawImage(logo_path, width - 200, height - 100, width=150, height=80, preserveAspectRatio=True, mask='auto')
-        except:
-            pass
+            # Position at top right
+            c.drawImage(logo_path, width - 130, height - 100, width=80, height=80, preserveAspectRatio=True, mask='auto')
+        except Exception as e:
+            print(f"Error drawing logo: {e}")
     
     # --- Branding & Header ---
     branding_color = (0, 0.5, 0) # Green as per image

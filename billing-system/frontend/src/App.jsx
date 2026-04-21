@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import UploadData from './pages/UploadData';
-import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import DB from './pages/DB';
 import Products from './pages/Products';
@@ -34,7 +33,6 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="transactions" element={<Transactions />} />
         <Route path="upload" element={<UploadData />} />
-        <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
         <Route path="db" element={<DB />} />
         <Route path="products" element={<Products />} />

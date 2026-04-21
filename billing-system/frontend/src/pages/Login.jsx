@@ -42,11 +42,11 @@ export default function Login() {
         
         {/* Logo/Brand Header */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-200 mb-4">
-            <ShieldCheck className="w-7 h-7 text-white" />
+          <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] mb-6 overflow-hidden border border-slate-50">
+            <img src="/logo.png" alt="Zeal Healing" className="w-[85%] h-[85%] object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Billing Portal</h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium text-center">Protected access for authorized staff only</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tighter">Zeal Healing</h1>
+          <p className="text-slate-400 text-xs mt-1.5 font-bold uppercase tracking-[0.2em]">Secure Staff Portal</p>
         </div>
 
         {/* Login Form Container */}

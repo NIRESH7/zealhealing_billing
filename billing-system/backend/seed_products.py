@@ -13,15 +13,15 @@ db = client.zeal_billing_db
 products = [
     # --- Tarot Appointments ---
     # Voice Call
-    {"name": "Tarot reading appointment 15min (Voice)", "category": "Tarot", "price_india": 1000, "price_abroad": 2000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
-    {"name": "Tarot reading appointment 30min (Voice)", "category": "Tarot", "price_india": 2000, "price_abroad": 4000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
-    {"name": "Tarot reading appointment 45min (Voice)", "category": "Tarot", "price_india": 3000, "price_abroad": 6000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
-    {"name": "Tarot reading appointment 1 hour (Voice)", "category": "Tarot", "price_india": 4000, "price_abroad": 8000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 15min Voice", "category": "Tarot", "price_india": 1000, "price_abroad": 2000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 30min Voice", "category": "Tarot", "price_india": 2000, "price_abroad": 4000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 45min Voice", "category": "Tarot", "price_india": 3000, "price_abroad": 6000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 60min Voice", "category": "Tarot", "price_india": 4000, "price_abroad": 8000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
     # Video Call
-    {"name": "Tarot reading appointment 15min (Video)", "category": "Tarot", "price_india": 2000, "price_abroad": 4000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
-    {"name": "Tarot reading appointment 30min (Video)", "category": "Tarot", "price_india": 4000, "price_abroad": 8000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
-    {"name": "Tarot reading appointment 45min (Video)", "category": "Tarot", "price_india": 6000, "price_abroad": 12000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
-    {"name": "Tarot reading appointment 1 hour (Video)", "category": "Tarot", "price_india": 8000, "price_abroad": 16000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 15min Video", "category": "Tarot", "price_india": 2000, "price_abroad": 4000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 30min Video", "category": "Tarot", "price_india": 4000, "price_abroad": 8000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 45min Video", "category": "Tarot", "price_india": 6000, "price_abroad": 12000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
+    {"name": "Tarot 60min Video", "category": "Tarot", "price_india": 8000, "price_abroad": 16000, "gst_rate": 18, "hsn_code": "9983", "is_service": True},
 
     # --- Crystals -> Bracelets (GST 0.25%) ---
     {"name": "black tourmaline bracelet", "category": "Crystals", "sub_category": "Bracelets", "price_india": 1499, "price_abroad": 1499, "gst_rate": 0.25, "hsn_code": "7117", "is_service": False},

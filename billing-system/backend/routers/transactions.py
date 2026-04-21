@@ -79,6 +79,8 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
     await db.transactions.update_one({"_id": result.inserted_id}, {"$set": {"invoice_url": invoice_url}})
     tx_dict["invoice_url"] = invoice_url
     
+    if "_id" in tx_dict:
+        del tx_dict["_id"]
     return tx_dict
 
 @router.post("/upload")
@@ -99,33 +101,37 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
             if not rows: continue
             
             # Check for New Format headers
-            header_vals = [str(c.value).lower() for c in rows[0]]
-            is_new_format = "location" in header_vals and "items" in header_vals
+            # 1. Normalize Headers (Strip spaces and lower case)
+            header_vals = [str(c.value).lower().strip() if c.value else "" for c in rows[0]]
             
-            if is_new_format:
-                col_map = {
-                    "date": header_vals.index("date"),
-                    "name": header_vals.index("name"),
-                    "phone": header_vals.index("phone"),
-                    "location": header_vals.index("location"),
-                    "items": header_vals.index("items"),
-                    "shipping": header_vals.index("shipping") if "shipping" in header_vals else -1,
-                    "transaction_id": header_vals.index("txn id") if "txn id" in header_vals else header_vals.index("transaction_id") if "transaction_id" in header_vals else 6
-                }
-                start_idx = 1
-            else:
-                # Old Mirror Mapping
-                col_map = {"date": 0, "name": 1, "phone": 2, "transaction_id": 3, "amount": 4, "product": 5}
-                start_idx = 0
-                # (Existing header detection logic for old format remains...)
-                for i, row in enumerate(rows):
-                    if any(c.value for c in row):
-                        test_val = str(row[1].value or "").lower()
-                        if "name" in test_val or "customer" in test_val:
-                            start_idx = i + 1
-                        else:
-                            start_idx = i
-                        break
+            # Robust mapping
+            def find_idx(possible_names, default=-1):
+                for name in possible_names:
+                    if name.lower().strip() in header_vals:
+                        return header_vals.index(name.lower().strip())
+                return default
+
+            col_map = {
+                "date": find_idx(["date", "billing date", "time"], 0),
+                "name": find_idx(["name", "customer", "customer name"], 1),
+                "phone": find_idx(["phone", "contact", "contact no", "mobile"], 2),
+                "transaction_id": find_idx(["txn id", "transaction id", "transaction_id", "ref id", "gpay id"], 3),
+                "amount": find_idx(["amount", "total", "price"], 4),
+                "items": find_idx(["details", "product", "items"], 5),
+                "location": find_idx(["location", "region"], -1),
+                "shipping": find_idx(["shipping", "delivery"], -1)
+            }
+
+            is_new_format = col_map["location"] != -1 and "items" in header_vals
+            
+            # Detect start_idx (Skip headers)
+            start_idx = 1
+            for i, row in enumerate(rows):
+                # If this row looks like a header (contains "name" or "phone" in actual value)
+                row_vals = [str(c.value).lower() if c.value else "" for c in row]
+                if any(x in row_vals for x in ["name", "phone", "contact", "customer", "txn id"]):
+                    start_idx = i + 1
+                    break
 
             current_date = "-" 
             
@@ -133,12 +139,17 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 if not any(c.value for c in row): continue 
                 
                 # 1. Capture Sticky Date
-                d_cell = row[col_map["date"]].value if len(row) > col_map["date"] else None
-                if d_cell:
-                    if hasattr(d_cell, "strftime"):
-                        current_date = d_cell.strftime('%d/%m/%y')
-                    elif re.match(r'^\d{1,2}/\d{1,2}/\d{2,4}', str(d_cell)):
-                        current_date = str(d_cell).strip()
+                d_val = row[col_map["date"]].value if col_map["date"] < len(row) else None
+                if d_val:
+                    if hasattr(d_val, "strftime"):
+                        current_date = d_val.strftime('%d/%m/%y')
+                    else:
+                        d_str = str(d_val).strip()
+                        # Match 01/01/2024 or 2024-01-01
+                        if re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', d_str) or re.match(r'^\d{4}[/-]\d{1,2}[/-]\d{1,2}', d_str):
+                            current_date = d_str
+                        elif len(d_str) > 5: # Fallback for other date strings
+                            current_date = d_str[:15]
 
                 # 2. Extract Identity
                 raw_name = str(row[col_map["name"]].value if len(row) > col_map["name"] else "").strip()
@@ -162,7 +173,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                     shipping = float(row[col_map["shipping"]].value or 0) if col_map["shipping"] != -1 else 0
                 else:
                     # Old Format fallback
-                    items_str = str(row[col_map["product"]].value or "").strip()
+                    items_str = str(row[col_map["items"]].value or "").strip()
                     location = "India"
                     shipping = 0
 
@@ -356,3 +367,42 @@ async def create_invoice(tx_id: str, db=Depends(get_db)):
 async def send_whatsapp(tx_id: str, db=Depends(get_db)):
     tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
     return send_whatsapp_invoice(tx["phone"], tx["invoice_url"])
+
+@router.post("/bulk-export")
+async def bulk_export(payload: dict, db=Depends(get_db)):
+    from zipfile import ZipFile
+    import io
+    
+    ids = [ObjectId(i) for i in payload.get("ids", [])]
+    if not ids:
+        # If no IDs, maybe export all matching current filters?
+        # For now, just return error
+        raise HTTPException(status_code=400, detail="No IDs provided")
+        
+    cursor = db.transactions.find({"_id": {"$in": ids}})
+    txs = await cursor.to_list(length=len(ids))
+    
+    zip_buffer = io.BytesIO()
+    with ZipFile(zip_buffer, "w") as zip_file:
+        for tx in txs:
+            # Ensure PDF exists
+            invoice_path = tx.get("invoice_url")
+            if not invoice_path:
+                from utils import generate_invoice_pdf
+                invoice_path = generate_invoice_pdf(tx)
+                await db.transactions.update_one({"_id": tx["_id"]}, {"$set": {"invoice_url": invoice_path}})
+            
+            # Static path logic
+            file_path = os.path.join(os.getcwd(), invoice_path.lstrip("/"))
+            if os.path.exists(file_path):
+                # Clean filename for zip
+                safe_name = f"Invoice_{tx.get('transaction_id', tx['_id'])}.pdf"
+                zip_file.write(file_path, safe_name)
+    
+    zip_buffer.seek(0)
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/x-zip-compressed",
+        headers={"Content-Disposition": f"attachment; filename=Zeal_Invoices_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"}
+    )
