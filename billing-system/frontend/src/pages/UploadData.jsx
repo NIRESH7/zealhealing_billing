@@ -1,7 +1,7 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import api from '../services/api';
 import { downloadTransactionTemplate } from '../utils/sample_generator';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, Download, Shield, RefreshCw, History, X, FileText, File, Plus, Check, AlertCircle, MessageSquare, Smartphone } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle2, Download, Shield, RefreshCw, History, X, FileText, File, Plus, Check, AlertCircle, MessageSquare, Smartphone, Loader2 } from 'lucide-react';
 import { UploadContext } from '../context/UploadContext';
 import WhatsAppLinkModal from '../components/WhatsAppLinkModal';
 
@@ -16,7 +16,7 @@ export default function UploadData() {
   const fileInputRef = useRef(null);
 
   // Poll WhatsApp status
-  React.useEffect(() => {
+  useEffect(() => {
     const checkWa = async () => {
       try {
         const res = await api.get('http://localhost:3001/api/whatsapp/status');
@@ -110,16 +110,16 @@ export default function UploadData() {
       {isWaModalOpen && <WhatsAppLinkModal onClose={() => setIsWaModalOpen(false)} />}
       <div className="min-h-full bg-white p-8 md:p-12 xl:p-16 max-w-7xl mx-auto font-sans">
       <div className="mb-8 pl-1">
-        <div className="flex items-center text-[10px] font-black tracking-widest text-slate-500 uppercase mb-5">
-          <span>BILLINGSYNC</span>
-          <span className="mx-2">›</span>
-          <span>UPLOAD LEDGER</span>
+        <div className="flex items-center text-[10px] font-black tracking-widest text-[#94a3b8] uppercase mb-4">
+          <span>Zeal Healing</span>
+          <span className="mx-2 text-emerald-500">›</span>
+          <span className="text-emerald-500">Ledger Upload</span>
         </div>
-        <h1 className="text-4xl font-black text-[#1a1c23] tracking-tight mb-4 uppercase">
+        <h1 className="text-3xl font-black text-[#1a1c23] tracking-tighter mb-3 uppercase">
           Upload Ledger
         </h1>
-        <p className="text-[#596375] text-base max-w-3xl leading-relaxed font-bold">
-          Import your financial statements and ledger entries. Supported formats: .CSV, .XLSX, and .PDF. Data will be synchronized across your active projects.
+        <p className="text-[#64748b] text-[13px] max-w-3xl font-bold leading-relaxed">
+          Import your financial statements. Supported formats: .CSV, .XLSX, and .PDF.
         </p>
       </div>
 
@@ -127,9 +127,9 @@ export default function UploadData() {
         {/* Left Column (Main Upload Area) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           
-          {/* Dropzone Container */}
-          <div className="border border-slate-200 p-6 rounded-3xl bg-white shadow-sm overflow-hidden">
-            <div className="border-2 border-dashed border-slate-200 bg-white flex flex-col items-center justify-center py-24 px-8 text-center cursor-pointer hover:bg-emerald-50/20 transition-all relative rounded-2xl group">
+          {/* Dropzone Container - Minimalist Rectangle */}
+          <div className="border border-slate-100 p-6 rounded-lg bg-white shadow-xl shadow-slate-100/30">
+            <div className="border-2 border-dashed border-emerald-50 bg-white flex flex-col items-center justify-center py-20 px-8 text-center cursor-pointer hover:bg-emerald-50/10 transition-all relative rounded-lg group">
                <input 
                   type="file" 
                   ref={fileInputRef}
@@ -138,61 +138,47 @@ export default function UploadData() {
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
                   onChange={handleFileSelect} 
                 />
-              <div className="mb-6 flex items-center justify-center">
-                <UploadCloud className="w-16 h-16 text-emerald-500/50 group-hover:scale-110 group-hover:text-emerald-500 transition-all duration-300" strokeWidth={1.5} />
+              <div className="mb-6 p-5 bg-emerald-50/50 rounded-lg group-hover:scale-105 transition-transform duration-500">
+                <UploadCloud className="w-10 h-10 text-emerald-500/70" strokeWidth={1.5} />
               </div>
-              <h3 className="text-2xl font-black text-[#1a1c23] mb-3 uppercase">
+              <h3 className="text-xl font-black text-[#1a1c23] mb-2 uppercase tracking-tighter">
                 Drag and drop ledger files here
               </h3>
-              <p className="text-[#596375] text-sm mb-10 font-bold">
-                Strictly limited to financial document types. Maximum file size: 50MB.
+              <p className="text-[#94a3b8] text-[11px] mb-8 font-black uppercase tracking-widest">
+                Maximum 50MB. Financial Documents.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4 relative z-20 pointer-events-none">
-                <button 
-                  type="button" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  className="pointer-events-auto bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-3.5 font-black text-[12px] transition-all flex items-center justify-center gap-2 rounded-xl shadow-lg shadow-emerald-100 uppercase tracking-widest"
-                >
-                  <Plus className="w-4 h-4" strokeWidth={3} />
-                  Browse Files
-                </button>
-              </div>
+              <button 
+                type="button" 
+                className="pointer-events-none bg-emerald-500/90 hover:bg-emerald-600 text-white px-8 py-3 font-black text-[11px] rounded-lg shadow-md shadow-emerald-50 uppercase tracking-[0.1em]"
+              >
+                <Plus className="w-3.5 h-3.5 inline-block mr-2" strokeWidth={4} />
+                Browse Files
+              </button>
             </div>
           </div>
 
-          {/* Feature Cards below Dropzone */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-2">
-            <div className="bg-white border border-slate-100 py-6 px-6 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 rounded-2xl shadow-sm">
-              <div className="shrink-0 mt-0.5">
-                <Shield className="w-6 h-6 text-emerald-600" />
-              </div>
+          {/* Feature Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="bg-white border border-slate-50 py-5 px-6 flex items-center gap-4 rounded-lg shadow-sm">
+              <Shield className="w-5 h-5 text-emerald-500/60" />
               <div>
-                <h4 className="text-[10px] font-black text-slate-800 tracking-wider">SECURITY</h4>
-                <p className="text-xs text-slate-600 mt-1 leading-snug font-bold">AES-256<br/>Encrypted</p>
+                <h4 className="text-[9px] font-black text-slate-800 tracking-wider uppercase">Security</h4>
+                <p className="text-[10px] text-[#94a3b8] font-black leading-tight uppercase">Active</p>
               </div>
             </div>
-            
-            <div className="bg-white border border-slate-100 py-6 px-6 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 rounded-2xl shadow-sm">
-               <div className="shrink-0 mt-0.5">
-                <RefreshCw className="w-6 h-6 text-emerald-600" />
-              </div>
+            <div className="bg-white border border-slate-50 py-5 px-6 flex items-center gap-4 rounded-lg shadow-sm">
+              <RefreshCw className="w-5 h-5 text-emerald-500/60" />
               <div>
-                <h4 className="text-[10px] font-black text-slate-800 tracking-wider">AUTOMATION</h4>
-                <p className="text-xs text-slate-600 mt-1 leading-snug font-bold">Auto-<br/>Categorization</p>
+                <h4 className="text-[9px] font-black text-slate-800 tracking-wider uppercase">Sync</h4>
+                <p className="text-[10px] text-[#94a3b8] font-black leading-tight uppercase">Direct</p>
               </div>
             </div>
-            
-            <div className="bg-white border border-slate-100 py-6 px-6 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 rounded-2xl shadow-sm">
-               <div className="shrink-0 mt-0.5">
-                <History className="w-6 h-6 text-emerald-600" />
-              </div>
+            <div className="bg-white border border-slate-50 py-5 px-6 flex items-center gap-4 rounded-lg shadow-sm">
+              <History className="w-5 h-5 text-emerald-500/60" />
               <div>
-                <h4 className="text-[10px] font-black text-slate-800 tracking-wider">ARCHIVAL</h4>
-                <p className="text-xs text-slate-600 mt-1 leading-snug font-bold">7 Year<br/>Retention</p>
+                <h4 className="text-[9px] font-black text-slate-800 tracking-wider uppercase">History</h4>
+                <p className="text-[10px] text-[#94a3b8] font-black leading-tight uppercase">Tracked</p>
               </div>
             </div>
           </div>
@@ -201,42 +187,24 @@ export default function UploadData() {
         {/* Right Column */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           
-          {/* Queued Uploads Card */}
-          <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
-              <h3 className="text-[10px] font-black text-slate-600 tracking-widest uppercase">Queued Uploads</h3>
-              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded">{files.length} Files</span>
+          {/* Sync Box - Minimalist Softer Green */}
+          <div className="bg-white border border-slate-50 rounded-lg shadow-xl shadow-slate-100/30 overflow-hidden">
+            <div className="p-5 border-b border-slate-50 flex justify-between items-center">
+              <h3 className="text-[9px] font-black text-[#94a3b8] tracking-widest uppercase">Signals</h3>
+              <span className="text-[9px] font-black text-emerald-500 bg-emerald-50 px-2.5 py-0.5 rounded">{files.length} Files</span>
             </div>
             
-            <div className="p-6 space-y-3 min-h-[220px] max-h-[350px] overflow-y-auto custom-scrollbar">
+            <div className="p-5 space-y-3 min-h-[120px] max-h-[250px] overflow-y-auto">
               {files.length === 0 ? (
-                 <div className="text-center py-10 text-slate-300 text-[11px] font-bold uppercase tracking-widest">
-                   No signals in queue
-                 </div>
+                <div className="text-center py-6 text-[10px] font-black text-slate-200 uppercase tracking-widest leading-none">Queue Empty</div>
               ) : (
                 files.map((file, idx) => (
-                  <div key={idx} className="flex justify-between items-start bg-slate-50 p-4 rounded-xl group relative border border-slate-100 transition-all hover:border-emerald-200">
-                    <div className="flex gap-4 w-full">
-                      <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shrink-0 border border-slate-200">
-                         {file.name.endsWith('.pdf') ? (
-                            <FileText className="w-4 h-4 text-emerald-600" />
-                         ) : file.name.endsWith('.csv') || file.name.endsWith('.xlsx') ? (
-                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                         ) : (
-                            <File className="w-4 h-4 text-emerald-600" />
-                         )}
-                      </div>
-                      <div className="overflow-hidden flex-1">
-                        <p className="text-[12px] font-black text-[#1a1c23] truncate w-11/12">{file.name}</p>
-                        <p className="text-[10px] text-[#596375] uppercase tracking-wider font-black mt-1">
-                          {file.size} • <span className={file.status === 'PROCESSING...' ? 'text-amber-600' : file.status === 'DONE' ? 'text-emerald-600' : file.status === 'ERROR' ? 'text-rose-600' : ''}>{file.status}</span>
-                        </p>
-                      </div>
+                  <div key={idx} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg group border border-transparent hover:border-emerald-100 transition-all">
+                    <div className="overflow-hidden flex-1">
+                        <p className="text-[11px] font-black text-[#1a1c23] truncate">{file.name}</p>
+                        <p className="text-[9px] text-emerald-400 font-black tracking-widest mt-0.5 uppercase">{file.status}</p>
                     </div>
-                    <button 
-                      onClick={() => removeFile(idx)}
-                      className="text-slate-300 hover:text-rose-500 transition-colors absolute top-4 right-4 p-1 rounded-md hover:bg-rose-50"
-                    >
+                    <button onClick={() => removeFile(idx)} className="text-slate-300 hover:text-rose-400 ml-3">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -244,88 +212,60 @@ export default function UploadData() {
               )}
             </div>
 
-            <div className="p-6 pt-0 bg-white">
-               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-500 mt-0.5" />
-                  <p className="text-[11px] text-rose-600 font-black uppercase leading-tight">{error}</p>
-                </div>
-              )}
-              {success && (
-                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
-                  <p className="text-[11px] text-emerald-600 font-black uppercase leading-tight">{success}</p>
-                </div>
-              )}
-              <button 
-                onClick={handleSync}
-                disabled={files.length === 0 || loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 font-black text-[11px] tracking-widest uppercase transition-all rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-[0.98]"
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : null}
-                {autoDispatch && isWaConnected ? 'SYNC & DISPATCH' : 'SYNC TO LEDGER'}
-              </button>
+            <div className="p-5 pt-0">
+               {error && <div className="mb-3 p-3 bg-rose-50 border border-rose-100 rounded-lg text-rose-500 text-[10px] font-black uppercase text-center">{error}</div>}
+               {success && <div className="mb-3 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-500 text-[10px] font-black uppercase text-center">{success}</div>}
+               <button 
+                 onClick={handleSync}
+                 className="w-full bg-emerald-500/90 hover:bg-emerald-600 text-white py-4 font-black text-[11px] tracking-[0.1em] uppercase rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+               >
+                 {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                 SYNC TO LEDGER
+               </button>
             </div>
           </div>
 
-          {/* WhatsApp Automation Card */}
-          <div className={`rounded-3xl border p-6 transition-all shadow-sm ${isWaConnected ? 'bg-emerald-50/40 border-emerald-100' : 'bg-slate-50 border-slate-200'}`}>
-            <div className="flex items-center justify-between mb-5">
-               <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${isWaConnected ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-slate-200 text-slate-500'}`}>
-                    <MessageSquare className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-[10px] font-black tracking-widest uppercase">WhatsApp Direct</h3>
-                    <p className={`text-[10px] font-black uppercase mt-0.5 ${isWaConnected ? 'text-emerald-600' : 'text-slate-400'}`}>Status: {isWaConnected ? 'Ready' : 'Not Linked'}</p>
-                  </div>
-               </div>
-               {!isWaConnected && (
-                 <button 
-                   onClick={() => setIsWaModalOpen(true)}
-                   className="text-[10px] font-black text-emerald-600 underline underline-offset-4 tracking-widest uppercase hover:text-emerald-800 transition-all"
-                 >
-                   LINK NOW
-                 </button>
-               )}
-            </div>
-            
-            <label className="flex items-center gap-3 cursor-pointer group">
+          {/* WhatsApp Direct */}
+          <div className="bg-emerald-50/30 border border-emerald-50 rounded-lg p-5 flex flex-col gap-5 shadow-sm">
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className="p-2 bg-emerald-500/80 text-white rounded-lg shadow-sm">
+                     <MessageSquare className="w-3.5 h-3.5" />
+                   </div>
+                   <div>
+                     <h3 className="text-[9px] font-black tracking-widest uppercase text-slate-700 leading-none">WhatsApp Flow</h3>
+                     <p className="text-[9px] text-emerald-500/70 font-black uppercase mt-1">{isWaConnected ? 'Linked' : 'Offline'}</p>
+                   </div>
+                </div>
+                {!isWaConnected && <button onClick={() => setIsWaModalOpen(true)} className="text-[9px] font-black text-emerald-500 underline uppercase">Link</button>}
+             </div>
+             
+             <div className="flex items-center justify-between bg-white/80 p-3 rounded-lg border border-emerald-50">
+               <span className="text-[9px] font-black text-slate-500 uppercase tracking-tight">Auto-Dispatch</span>
                <div 
                  onClick={() => setAutoDispatch(!autoDispatch)}
-                 className={`w-10 h-5 rounded-full relative transition-colors ${autoDispatch ? 'bg-emerald-600 shadow-md shadow-emerald-100' : 'bg-slate-300'}`}
+                 className={`w-9 h-4.5 rounded-full relative cursor-pointer transition-all ${autoDispatch ? 'bg-emerald-500/80' : 'bg-slate-200'}`}
                >
-                 <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${autoDispatch ? 'left-6' : 'left-1'}`} />
+                 <div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all ${autoDispatch ? 'left-5' : 'left-0.5'}`} />
                </div>
-               <span className="text-[11px] font-black text-slate-700 group-hover:text-slate-900 transition-colors uppercase tracking-tight">
-                 Auto-dispatch bills via WhatsApp
-               </span>
-            </label>
+             </div>
           </div>
 
-          {/* Formatting Rules */}
-          <div className="bg-slate-50 border border-slate-100 rounded-3xl p-8">
-             <h3 className="text-[10px] font-black text-slate-800 tracking-widest uppercase mb-6">Execution Rules</h3>
-             <ul className="space-y-4">
-               <li className="flex gap-4 text-[12px] text-[#596375] font-bold">
-                 <div className="mt-0.5 bg-emerald-600 rounded-full p-1.5 flex items-center justify-center flex-shrink-0 h-5 w-5">
-                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
+          {/* Execution Rules - Minimalist White */}
+          <div className="bg-white border border-slate-50 rounded-lg p-7 shadow-xl shadow-slate-100/20">
+             <h3 className="text-[9px] font-black text-slate-300 tracking-[0.15em] uppercase mb-6 border-b border-slate-50 pb-3">Ledger Rules</h3>
+             <ul className="space-y-5">
+               <li className="flex gap-3">
+                 <div className="flex-shrink-0 w-4 h-4 bg-emerald-500/60 rounded-full flex items-center justify-center">
+                    <Check className="w-2.5 h-2.5 text-white" strokeWidth={5} />
                  </div>
-                 <span className="leading-snug uppercase">Columns: Date, Entity, and Amount.</span>
+                 <span className="text-[10px] font-black text-slate-500 uppercase leading-snug tracking-tighter text-left">Columns: Date, Entity, Amount.</span>
                </li>
-               <li className="flex gap-4 text-[12px] text-[#596375] font-bold">
-                 <div className="mt-0.5 bg-emerald-600 rounded-full p-1.5 flex items-center justify-center flex-shrink-0 h-5 w-5">
-                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
+               <li className="flex gap-3">
+                 <div className="flex-shrink-0 w-4 h-4 bg-emerald-500/60 rounded-full flex items-center justify-center">
+                    <Check className="w-2.5 h-2.5 text-white" strokeWidth={5} />
                  </div>
-                 <span className="leading-snug uppercase">ISO Date: YYYY-MM-DD.</span>
-               </li>
-               <li className="flex gap-4 text-[12px] text-[#596375] font-bold">
-                 <div className="mt-0.5 bg-emerald-600 rounded-full p-1.5 flex items-center justify-center flex-shrink-0 h-5 w-5">
-                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
-                 </div>
-                 <span className="leading-snug uppercase">UTF-8 Encoded CSV required.</span>
+                 <span className="text-[10px] font-black text-slate-500 uppercase leading-snug tracking-tighter text-left">Format: YYYY-MM-DD only.</span>
                </li>
              </ul>
           </div>

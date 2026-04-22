@@ -249,7 +249,7 @@ def generate_invoice_pdf(transaction: dict):
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 10)
     c.drawString(410, calc_y - row_offset - 24, "Grand Total")
-    c.drawRightString(580, calc_y - row_offset - 24, f"₹{rounded_total:,.2f}")
+    c.drawRightString(580, calc_y - row_offset - 24, f"Rs. {rounded_total:,.2f}")
     
     # Bottom Summary
     c.setFillColorRGB(0, 0, 0)
