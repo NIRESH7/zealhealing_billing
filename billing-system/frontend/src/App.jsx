@@ -9,6 +9,7 @@ import UploadData from './pages/UploadData';
 import Settings from './pages/Settings';
 import DB from './pages/DB';
 import Products from './pages/Products';
+import WhatsAppMonitor from './pages/WhatsAppMonitor';
 import { UploadProvider } from './context/UploadContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="settings" element={<Settings />} />
         <Route path="db" element={<DB />} />
         <Route path="products" element={<Products />} />
+        <Route path="whatsapp-monitor" element={<WhatsAppMonitor />} />
       </Route>
     </Routes>
   );

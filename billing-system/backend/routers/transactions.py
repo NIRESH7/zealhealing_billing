@@ -1,7 +1,9 @@
 import io
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import List
 from datetime import datetime, date as date_type
+import random
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from decimal import Decimal
 from bson import ObjectId
 from database import get_db
@@ -367,6 +369,131 @@ async def create_invoice(tx_id: str, db=Depends(get_db)):
 async def send_whatsapp(tx_id: str, db=Depends(get_db)):
     tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
     return send_whatsapp_invoice(tx["phone"], tx["invoice_url"])
+
+async def process_bulk_whatsapp(batch_id: str, ids: List[str], db):
+    print(f"[Bulk WhatsApp] Starting batch {batch_id} for {len(ids)} users...")
+    
+    # Initialize batch items status
+    await db.whatsapp_batches.update_one(
+        {"batch_id": batch_id},
+        {"$set": {"status": "processing", "total": len(ids), "processed": 0}}
+    )
+
+    for i, tx_id in enumerate(ids):
+        try:
+            tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+            if not tx: continue
+            
+            # Update item status to 'sending'
+            await db.whatsapp_batches.update_one(
+                {"batch_id": batch_id, "items.tx_id": tx_id},
+                {"$set": {"items.$.status": "sending"}}
+            )
+
+            # 1. Ensure invoice exists
+            invoice_url = tx.get("invoice_url")
+            if not invoice_url:
+                invoice_url = generate_invoice_pdf(tx)
+                await db.transactions.update_one({"_id": ObjectId(tx_id)}, {"$set": {"invoice_url": invoice_url}})
+            
+            # 2. Send via WhatsApp
+            print(f"[Bulk WhatsApp] Sending {i+1}/{len(ids)} to {tx['phone']}")
+            send_whatsapp_invoice(tx["phone"], invoice_url)
+            
+            # Update item status to 'sent'
+            await db.whatsapp_batches.update_one(
+                {"batch_id": batch_id, "items.tx_id": tx_id},
+                {"$set": {"items.$.status": "sent", "items.$.sent_at": datetime.utcnow()}}
+            )
+            await db.whatsapp_batches.update_one({"batch_id": batch_id}, {"$inc": {"processed": 1}})
+            
+            # 3. Random Delay (30-50s) - Except for the last one
+            if i < len(ids) - 1:
+                delay = random.uniform(30, 50)
+                print(f"[Bulk WhatsApp] Sleeping for {delay:.2f}s...")
+                await asyncio.sleep(delay)
+                
+        except Exception as e:
+            print(f"[Bulk WhatsApp] Error processing {tx_id}: {e}")
+            await db.whatsapp_batches.update_one(
+                {"batch_id": batch_id, "items.tx_id": tx_id},
+                {"$set": {"items.$.status": "error", "items.$.error": str(e)}}
+            )
+
+    await db.whatsapp_batches.update_one({"batch_id": batch_id}, {"$set": {"status": "completed", "completed_at": datetime.utcnow()}})
+
+@router.post("/bulk-whatsapp")
+async def bulk_send_whatsapp(payload: dict, background_tasks: BackgroundTasks, db=Depends(get_db)):
+    ids = payload.get("ids", [])
+    if not ids:
+        raise HTTPException(status_code=400, detail="No transaction IDs provided")
+    
+    batch_id = str(uuid.uuid4())
+    
+    # Create the batch document first
+    batch_items = []
+    for tx_id in ids:
+        tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+        if tx:
+            batch_items.append({
+                "tx_id": tx_id,
+                "name": tx["name"],
+                "phone": tx["phone"],
+                "status": "queued"
+            })
+            
+    await db.whatsapp_batches.insert_one({
+        "batch_id": batch_id,
+        "status": "queued",
+        "total": len(ids),
+        "processed": 0,
+        "items": batch_items,
+        "created_at": datetime.utcnow()
+    })
+
+    background_tasks.add_task(process_bulk_whatsapp, batch_id, ids, db)
+    return {"message": f"Bulk sending started. Batch ID: {batch_id}", "batch_id": batch_id}
+
+@router.get("/whatsapp/batch/{batch_id}")
+async def get_whatsapp_batch(batch_id: str, db=Depends(get_db)):
+    batch = await db.whatsapp_batches.find_one({"batch_id": batch_id})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    batch["id"] = str(batch["_id"])
+    del batch["_id"]
+    return batch
+
+@router.get("/whatsapp/batches/latest")
+async def get_latest_whatsapp_batch(db=Depends(get_db)):
+    batch = await db.whatsapp_batches.find_one(sort=[("created_at", -1)])
+    if not batch: return {"status": "none"}
+    batch["id"] = str(batch["_id"])
+    del batch["_id"]
+    return batch
+
+@router.get("/batch-status")
+async def get_current_batch_status(db=Depends(get_db)):
+    # Alias for latest batch for frontend monitor
+    batch = await db.whatsapp_batches.find_one(sort=[("created_at", -1)])
+    if not batch: return {"status": "none", "items": []}
+    batch["id"] = str(batch["_id"])
+    del batch["_id"]
+    
+    # Calculate ETA (roughly 40s per remaining item)
+    processed = batch.get("processed", 0)
+    total = batch.get("total", 0)
+    remaining = total - processed
+    if remaining > 0 and batch.get("status") == "processing":
+        eta_seconds = remaining * 40
+        minutes = eta_seconds // 60
+        seconds = eta_seconds % 60
+        batch["eta"] = f"{minutes}m {seconds}s"
+    elif batch.get("status") == "completed":
+        batch["eta"] = "Completed"
+    else:
+        batch["eta"] = "Queued"
+        
+    return batch
 
 @router.post("/bulk-export")
 async def bulk_export(payload: dict, db=Depends(get_db)):

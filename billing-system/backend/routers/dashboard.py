@@ -37,7 +37,7 @@ async def get_dashboard_filters(db=Depends(get_db), current_user=Depends(get_cur
     
     # Calculate Max Visits for dynamic filter range
     max_visits_res = await db.customers.find_one(sort=[("total_transactions", -1)])
-    max_visits = max_visits_res.get("total_transactions", 10) if max_visits_res else 10
+    max_visits = max_visits_res.get("total_transactions", 0) if max_visits_res else 0
     
     return {
         "products": products, 

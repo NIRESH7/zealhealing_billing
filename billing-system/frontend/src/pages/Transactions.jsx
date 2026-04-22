@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText } from 'lucide-react';
 
@@ -86,12 +86,12 @@ function CreateModal({ onClose, onSave }) {
         <form onSubmit={handleSubmit} className="p-10 space-y-8">
           <div className="grid grid-cols-2 gap-8">
             <div className="col-span-2">
-               <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
+               <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit font-bold">
                   {['India', 'Abroad'].map(r => (
                     <button 
                       key={r} type="button"
                       onClick={() => calculate(r)}
-                      className={`px-8 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.region === r ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`px-8 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.region === r ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                       {r}
                     </button>
@@ -102,22 +102,22 @@ function CreateModal({ onClose, onSave }) {
             <div className="col-span-2 relative">
               <label className="text-[11px] font-black text-slate-400 mb-3 block uppercase tracking-widest">Search Product / Service</label>
               <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 group-focus-within:text-emerald-600 transition-colors" />
                 <input 
                   type="text" value={search} onChange={(e) => { setSearch(e.target.value); setShowSuggestions(true); }}
                   onFocus={() => setShowSuggestions(true)}
-                  className="w-full pl-11 pr-4 py-4 text-[14px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-600/10 outline-none transition-all"
+                  className="w-full pl-11 pr-4 py-4 text-[14px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-emerald-600/10 outline-none transition-all"
                   placeholder="Type product name (Tarot, Crystal...)"
                 />
               </div>
               {showSuggestions && products.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl p-2 z-[110] max-h-60 overflow-y-auto">
                    {products.map(p => (
-                     <div key={p.id} onClick={() => selectProduct(p)} className="p-3 hover:bg-indigo-50 rounded-xl cursor-pointer flex justify-between items-center group transition-all">
-                        <span className="text-[13px] font-bold text-slate-700 group-hover:text-indigo-600">{p.name}</span>
+                     <div key={p.id} onClick={() => selectProduct(p)} className="p-3 hover:bg-emerald-50 rounded-xl cursor-pointer flex justify-between items-center group transition-all">
+                        <span className="text-[13px] font-black text-slate-700 group-hover:text-emerald-600">{p.name}</span>
                         <div className="flex items-center gap-3">
                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-tight">{p.category}</span>
-                           <span className="text-[11px] font-black text-indigo-600">₹{formData.region === 'India' ? p.price_india : p.price_abroad}</span>
+                           <span className="text-[11px] font-black text-emerald-600">₹{formData.region === 'India' ? p.price_india : p.price_abroad}</span>
                         </div>
                      </div>
                    ))}
@@ -128,25 +128,25 @@ function CreateModal({ onClose, onSave }) {
             <div className="space-y-6">
                <div>
                   <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Customer Name</label>
-                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/10 outline-none" placeholder="Enter name" />
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-black text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-600/10 outline-none" placeholder="Enter name" />
                </div>
                <div>
                   <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Contact Identity</label>
-                  <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/10 outline-none" placeholder="WhatsApp Number" />
+                  <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-black text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-600/10 outline-none" placeholder="WhatsApp Number" />
                </div>
             </div>
 
             <div className="space-y-6">
                <div>
                   <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">GPay/Ref ID</label>
-                  <input required type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-bold text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/10 outline-none placeholder:uppercase" placeholder="TXN123456" />
+                  <input required type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-black text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-600/10 outline-none placeholder:uppercase" placeholder="TXN123456" />
                </div>
-               <div className="bg-indigo-600/5 p-6 rounded-[24px] border border-indigo-100/50">
+               <div className="bg-emerald-600/5 p-6 rounded-[24px] border border-emerald-100/50 text-emerald-600">
                   <div className="flex justify-between items-center mb-2">
                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Total</span>
-                     <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded italic">GST {formData.gst_rate}%</span>
+                     <span className="text-[10px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded italic">GST {formData.gst_rate}%</span>
                   </div>
-                  <div className="text-3xl font-black text-indigo-600 tracking-tighter">₹{formData.total_amount.toLocaleString()}</div>
+                  <div className="text-3xl font-black tracking-tighter">₹{formData.total_amount.toLocaleString()}</div>
                   <p className="text-[10px] font-bold text-slate-400 mt-2 italic">Base: ₹{formData.amount} | Tax: ₹{formData.cgst + formData.sgst}</p>
                </div>
             </div>
@@ -154,7 +154,7 @@ function CreateModal({ onClose, onSave }) {
 
           <div className="flex justify-end gap-4 pt-6 border-t border-slate-100">
             <button type="button" onClick={onClose} className="px-8 py-3.5 text-[11px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">Abort</button>
-            <button type="submit" disabled={loading} className="px-12 py-3.5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-600 shadow-2xl shadow-indigo-100 transition-all disabled:opacity-50">
+            <button type="submit" disabled={loading} className="px-12 py-3.5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-emerald-600 shadow-2xl shadow-emerald-100 transition-all disabled:opacity-50">
               {loading ? 'Processing...' : 'Verify & Generate Bill'}
             </button>
           </div>
@@ -166,6 +166,7 @@ function CreateModal({ onClose, onSave }) {
 
 export default function Transactions() {
   const { user } = useOutletContext();
+  const navigate = useNavigate();
   const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -180,6 +181,7 @@ export default function Transactions() {
   const [activeTx, setActiveTx] = useState(null); 
   const [generatingId, setGeneratingId] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -209,7 +211,6 @@ export default function Transactions() {
     
     setLoading(true);
     try {
-      // Use the new bulk-export ZIP endpoint
       const response = await api.post('/transactions/bulk-export', 
         { ids: selected }, 
         { responseType: 'blob' }
@@ -229,6 +230,22 @@ export default function Transactions() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBulkWhatsApp = async () => {
+    if (selected.length === 0) return;
+    if (!window.confirm(`Send WhatsApp bills to ${selected.length} users with safety delays?`)) return;
+    
+    setSendingWhatsApp(true);
+    try {
+      const res = await api.post('/transactions/bulk-whatsapp', { ids: selected });
+      setSelected([]);
+      navigate('/whatsapp-monitor'); // Redirect to monitor
+    } catch (err) {
+      alert('Bulk send failed. Ensure WhatsApp service is online.');
+    } finally {
+      setSendingWhatsApp(false);
     }
   };
 
@@ -263,7 +280,6 @@ export default function Transactions() {
 
   return (
     <>
-      {editingTx && <EditModal tx={editingTx} onClose={() => setEditingTx(null)} onSave={() => { setEditingTx(null); fetchTransactions(); }} />}
       {isCreateModalOpen && <CreateModal onClose={() => setIsCreateModalOpen(false)} onSave={() => { setIsCreateModalOpen(false); fetchTransactions(); }} />}
       
       {singleBill && (
@@ -271,9 +287,9 @@ export default function Transactions() {
           <div className="bg-white w-full max-w-5xl h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-slate-50 rounded flex items-center justify-center border border-slate-100"><FileText className="w-4 h-4 text-slate-500" /></div>
+                <div className="w-8 h-8 bg-emerald-50 rounded flex items-center justify-center border border-emerald-100"><FileText className="w-4 h-4 text-emerald-600" /></div>
                 <div>
-                  <span className="text-sm font-bold tracking-tight text-slate-900 block">{singleBill.name}</span>
+                  <span className="text-sm font-black tracking-tight text-slate-900 block">{singleBill.name}</span>
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Bill Statement</span>
                 </div>
               </div>
@@ -284,12 +300,12 @@ export default function Transactions() {
               <button 
                 onClick={() => generateInvoice(activeTx)} 
                 disabled={generatingId === activeTx?.id}
-                className="px-5 py-2 text-slate-500 border border-slate-200 rounded-lg text-[11px] font-bold uppercase tracking-wider hover:bg-slate-50 transition-all flex items-center gap-2"
+                className="px-5 py-2 text-emerald-600 border border-emerald-100 rounded-lg text-[11px] font-black uppercase tracking-wider hover:bg-emerald-50 transition-all flex items-center gap-2"
               >
                 {generatingId === activeTx?.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
                 Sync
               </button>
-              <a href={singleBill.url} download className="px-6 py-2 bg-slate-900 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-all flex items-center gap-2">
+              <a href={singleBill.url} download className="px-6 py-2 bg-slate-900 text-white rounded-lg text-[11px] font-black uppercase tracking-wider hover:bg-emerald-600 transition-all flex items-center gap-2">
                 <Download className="w-3.5 h-3.5" />
                 Download
               </a>
@@ -300,26 +316,25 @@ export default function Transactions() {
 
       <div className="max-w-[1440px] mx-auto px-8 pb-32">
         
-        {/* Modern Minimal Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10 pb-8 border-b border-slate-100">
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-slate-900">Performance Ledger</h1>
+            <h1 className="text-2xl font-black tracking-tighter text-slate-900 uppercase">Performance Ledger</h1>
             <div className="flex items-center gap-2 mt-2">
                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] leading-none">Database Online & Syncing</p>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] leading-none">Database Online & Syncing</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setLatestBatchOnly(!latestBatchOnly)}
-              className={`px-4 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg border transition-all ${latestBatchOnly ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-900'}`}
+              className={`px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-lg border transition-all ${latestBatchOnly ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-400 hover:text-emerald-600'}`}
             >
               Latest Upload
             </button>
             <button 
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-5 py-2 text-[11px] font-bold uppercase tracking-wider bg-indigo-600 text-white rounded-lg hover:bg-slate-900 transition-all flex items-center gap-2"
+              className="px-5 py-2 text-[11px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded-lg hover:bg-slate-900 transition-all flex items-center gap-2 shadow-lg shadow-emerald-100"
             >
               <Plus className="w-3.5 h-3.5" />
               New Entry
@@ -327,65 +342,72 @@ export default function Transactions() {
             <button 
               onClick={handleBulkExport}
               disabled={loading || selected.length === 0}
-              className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider bg-white border border-slate-200 text-slate-500 rounded-lg hover:border-slate-400 hover:text-slate-900 transition-all disabled:opacity-50"
+              className="px-4 py-2 text-[11px] font-black uppercase tracking-wider bg-white border border-slate-200 text-slate-500 rounded-lg hover:border-emerald-400 hover:text-emerald-600 transition-all disabled:opacity-50"
             >
               Export
             </button>
-            <button onClick={handleWipeAll} className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-rose-500 hover:bg-rose-50 rounded-lg transition-all">Clear All</button>
+            <button onClick={handleWipeAll} className="px-4 py-2 text-[11px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 rounded-lg transition-all">Clear All</button>
           </div>
         </div>
 
-        {/* High-Performance Minimalist Selection Toolbar */}
         {selected.length > 0 && (
-          <div className="bg-indigo-50/40 backdrop-blur-sm border-t border-b border-indigo-100/50 px-8 py-4 flex items-center justify-between mb-8 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-emerald-50/40 backdrop-blur-sm border-t border-b border-emerald-100/50 px-8 py-4 flex items-center justify-between mb-8 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center gap-8">
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-emerald-600 rounded-full animate-pulse" />
                 <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">
                   {selectAllAll ? `All ${data.total} records secured` : `${selected.length} entries selected`}
                 </span>
               </div>
               {!selectAllAll && data.total > data.items.length && (
-                <button onClick={() => setSelectAllAll(true)} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 underline underline-offset-4 decoration-indigo-200 decoration-2 transition-all">
+                <button onClick={() => setSelectAllAll(true)} className="text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-800 underline underline-offset-4 decoration-emerald-200 decoration-2 transition-all">
                   Commit all {data.total} to scope
                 </button>
               )}
             </div>
-            <button 
-              onClick={handleBulkDelete} 
-              className="px-6 py-2.5 bg-white text-rose-500 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 transition-all shadow-sm"
-            >
-              Destroy Logs
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleBulkWhatsApp}
+                disabled={sendingWhatsApp}
+                className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 disabled:opacity-50"
+              >
+                {sendingWhatsApp ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageCircle className="w-3 h-3" />}
+                Send Bills
+              </button>
+              <button 
+                onClick={handleBulkDelete} 
+                className="px-6 py-2.5 bg-white text-rose-500 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 transition-all shadow-sm"
+              >
+                Destroy Logs
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Toolbar */}
         <div className="flex flex-col md:flex-row gap-3 items-center mb-6">
           <form onSubmit={handleSearch} className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
             <input 
               type="text" placeholder="Search by name, phone, transaction ID..." 
               value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 text-[13px] text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-slate-400 outline-none transition-all placeholder:text-slate-400"
+              className="w-full pl-11 pr-4 py-2.5 text-[13px] font-black text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400"
             />
           </form>
           <div className="relative w-full md:w-48">
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-4 py-2.5 text-[12px] font-medium bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-slate-400 transition-all appearance-none text-slate-700">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
               <option value="All">All Transactions</option>
               <option value="Verified">Verified</option>
               <option value="Pending">Pending</option>
             </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
           </div>
         </div>
 
-        {/* Minimalist SaaS Table */}
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
           {loading ? (
             <div className="flex flex-col justify-center items-center py-40 text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin mb-3" />
-              <span className="text-[11px] font-medium tracking-widest uppercase">Loading Ledger...</span>
+              <Loader2 className="w-8 h-8 animate-spin mb-3 text-emerald-500" />
+              <span className="text-[11px] font-black tracking-widest uppercase">Loading Ledger...</span>
             </div>
           ) : (
             <>
@@ -394,61 +416,61 @@ export default function Transactions() {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="px-4 py-3 w-10 text-center border-r border-slate-200">
-                        <button onClick={toggleSelectAll} className="p-1 text-slate-400 hover:text-indigo-600 transition-all">
+                        <button onClick={toggleSelectAll} className="p-1 text-emerald-600 hover:text-emerald-800 transition-all">
                           {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                         </button>
                       </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Date</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Customer</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Phone</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Transaction ID</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Amount</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Items</th>
-                      <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">Action</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Date</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Customer</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Phone</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Transaction ID</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Amount</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Items</th>
+                      <th className="px-4 py-3 text-center text-[11px] font-black text-slate-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {data.items.map((tx) => {
                       const isSelected = selected.includes(tx.id);
                       return (
-                        <tr key={tx.id} className={`transition-colors ${isSelected ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
+                        <tr key={tx.id} className={`transition-colors ${isSelected ? 'bg-emerald-50/30' : 'hover:bg-slate-50/50'}`}>
                           <td className="px-4 py-2.5 text-center border-r border-slate-100">
-                            <button onClick={() => toggleSelect(tx.id)} className={`p-1 transition-all ${isSelected ? 'text-indigo-600' : 'text-slate-300 hover:text-slate-600'}`}>
+                            <button onClick={() => toggleSelect(tx.id)} className={`p-1 transition-all ${isSelected ? 'text-emerald-600' : 'text-slate-300 hover:text-slate-600'}`}>
                               {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                             </button>
                           </td>
-                          <td className="px-4 py-2.5 text-[12px] text-slate-600 border-r border-slate-100">{tx.date || '--'}</td>
+                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-600 border-r border-slate-100">{tx.date || '--'}</td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
-                            <span className="text-[13px] font-medium text-slate-900">{tx.name}</span>
+                            <span className="text-[13px] font-black text-slate-900">{tx.name}</span>
                           </td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
-                            <span className="text-[12px] text-slate-600">{tx.phone}</span>
+                            <span className="text-[12px] font-black text-slate-600">{tx.phone}</span>
                           </td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
-                             <div className="font-mono text-[11px] text-slate-400 truncate max-w-[160px]">{tx.transaction_id}</div>
+                             <div className="font-mono text-[11px] font-black text-slate-400 truncate max-w-[160px]">{tx.transaction_id}</div>
                           </td>
-                          <td className="px-4 py-2.5 text-[12px] font-semibold text-slate-900 border-r border-slate-100">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
-                            <p className="text-[12px] text-slate-600 truncate max-w-[200px]" title={tx.product}>{tx.product || '-'}</p>
+                            <p className="text-[12px] font-black text-slate-600 truncate max-w-[200px]" title={tx.product}>{tx.product || '-'}</p>
                           </td>
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center justify-end gap-3 transition-all duration-300">
+                          <td className="px-4 py-2.5 border-l border-slate-100">
+                            <div className="flex items-center justify-center gap-3">
                               {generatingId === tx.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
                               ) : (
                                 <button 
                                   onClick={() => {
                                     setActiveTx(tx);
                                     tx.invoice_url ? setSingleBill({ url: `http://localhost:8000${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
                                   }} 
-                                  className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded transition-all ${tx.invoice_url ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
+                                  className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded transition-all ${tx.invoice_url ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
                                   title={tx.invoice_url ? "View Bill" : "Generate Bill"}
                                 >
                                   View
                                 </button>
                               )}
-                              <button onClick={() => setEditingTx(tx)} className="text-slate-400 hover:text-slate-900 transition-all" title="Edit"><Edit3 className="w-4 h-4" /></button>
-                              <button onClick={async () => { if(window.confirm('Delete entry?')) { await api.delete(`/transactions/${tx.id}`); fetchTransactions(); } }} className="text-slate-400 hover:text-rose-500 transition-all" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                              <button onClick={() => setEditingTx(tx)} className="text-slate-300 hover:text-emerald-600 transition-all"><Edit3 className="w-4 h-4" /></button>
+                              <button onClick={async () => { if(window.confirm('Delete entry?')) { await api.delete(`/transactions/${tx.id}`); fetchTransactions(); } }} className="text-slate-300 hover:text-rose-500 transition-all"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>
@@ -458,13 +480,12 @@ export default function Transactions() {
                 </table>
               </div>
 
-              {/* Minimalist Pagination */}
               <div className="px-10 py-8 flex items-center justify-between bg-slate-50/30 border-t border-slate-100">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{data.total} Signals Logged</span>
                 <div className="flex gap-2">
-                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-indigo-400 disabled:opacity-30 transition-all shadow-sm"><ChevronLeft className="w-5 h-5 text-slate-600" /></button>
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-emerald-400 disabled:opacity-30 transition-all shadow-sm"><ChevronLeft className="w-5 h-5 text-emerald-600" /></button>
                   <div className="px-5 h-10 flex items-center justify-center text-[12px] font-black text-slate-900 bg-white border border-slate-200 rounded-xl select-none shadow-sm">{page + 1}</div>
-                  <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= data.total} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-indigo-400 disabled:opacity-30 transition-all shadow-sm"><ChevronRight className="w-5 h-5 text-slate-600" /></button>
+                  <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= data.total} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-emerald-400 disabled:opacity-30 transition-all shadow-sm"><ChevronRight className="w-5 h-5 text-emerald-600" /></button>
                 </div>
               </div>
             </>

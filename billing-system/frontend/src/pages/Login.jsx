@@ -2,7 +2,7 @@
 import React, { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, ShieldCheck, User, Lock, Eye, EyeOff, ChevronRight } from 'lucide-react';
+import { Loader2, User, Lock, Eye, EyeOff, ChevronRight, CheckCircle2 } from 'lucide-react';
 
 export default function Login() {
   const { login, register } = useContext(AuthContext);
@@ -26,131 +26,145 @@ export default function Login() {
       }
       navigate('/');
     } catch (err) {
-      setError(isRegister ? 'Registration failed. Username/mail might exist.' : 'The username or password you entered is incorrect.');
+      setError(isRegister ? 'Personnel Sync Failed' : 'Authentication Invalid');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-white font-sans selection:bg-primary-100">
+    <div className="min-h-screen w-full flex flex-col md:flex-row font-sans selection:bg-emerald-100 relative overflow-hidden">
       
-      {/* Background Decor - Very subtle gradient to prevent "flat" look while keeping it white */}
-      <div className="absolute inset-0 z-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-20 pointer-events-none" />
-
-      <div className="relative z-10 w-full max-w-[400px] px-6">
-        
-        {/* Logo/Brand Header */}
-        <div className="flex flex-col items-center mb-10">
-          <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] mb-6 overflow-hidden border border-slate-50">
-            <img src="/logo.png" alt="Zeal Healing" className="w-[85%] h-[85%] object-contain" />
-          </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tighter">Zeal Healing</h1>
-          <p className="text-slate-400 text-xs mt-1.5 font-bold uppercase tracking-[0.2em]">Secure Staff Portal</p>
-        </div>
-
-        {/* Login Form Container */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Username Field */}
-            <div className="space-y-2">
-              <label className="text-[13px] font-bold text-slate-700 ml-1 uppercase tracking-wider">
-                {isRegister ? "Mail ID" : "Staff ID / Username"}
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
-                  <User className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder={isRegister ? "Enter your mail ID" : "Enter your username"}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Password Field */}
-            <div className="space-y-2">
-              <label className="text-[13px] font-bold text-slate-700 ml-1 uppercase tracking-wider">
-                Password
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-0 top-0 h-full px-4 text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-semibold animate-in fade-in slide-in-from-top-1">
-                <div className="w-1 h-1 rounded-full bg-red-600" />
-                {error}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-slate-200 transition-all active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2 text-sm"
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  {isRegister ? "Register Account" : "Connect to Portal"}
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Additional Links */}
-          <div className="mt-8 flex flex-col items-center gap-3">
-            <button 
-              type="button" 
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors tracking-wide"
-            >
-              {isRegister ? "Already have an account? Login" : "Don't have an account? Register"}
-            </button>
-            
-            {!isRegister && (
-              <button 
-                type="button"
-                className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest mt-2"
-              >
-                Forgot Credentials?
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Footer info */}
-        <p className="mt-12 text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">
-          Secured by BillingSync Enterprise
-        </p>
+      {/* Devotional Glow Effects */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+         <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-yellow-100/30 rounded-full blur-[140px] animate-pulse" />
+         <div className="absolute top-1/2 right-[10%] -translate-y-1/2 w-[350px] h-[350px] bg-yellow-200/20 rounded-full blur-[100px] z-0" />
       </div>
-    </div>
+
+      {/* Left Branding Side - Soft Healing Green Contrast */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-12 bg-[#f0fdf4] md:border-r border-emerald-100/50">
+         <div className="w-full max-w-sm flex flex-col items-center text-center">
+            <div className="relative mb-8">
+               <div className="w-28 h-28 rounded-full bg-white shadow-[0_20px_50px_rgba(16,185,129,0.1)] p-4 flex items-center justify-center border border-emerald-50">
+                  <img src="/logo.png" alt="Zeal Healing" className="w-full h-full object-contain" />
+               </div>
+               <div className="absolute bottom-2 right-2 w-3.5 h-3.5 bg-emerald-500 rounded-full border-4 border-white" />
+            </div>
+            
+            <div className="space-y-4">
+               <h1 className="text-[44px] font-black text-slate-900 tracking-tighter leading-[1]">
+                  BILLING<br />
+                  <span className="text-emerald-600">PORTAL.</span>
+               </h1>
+               <div className="h-0.5 w-10 bg-emerald-600 mx-auto rounded-full" />
+               <p className="max-w-[240px] text-[10px] font-black text-emerald-800/60 uppercase tracking-[0.4em] leading-loose mt-4">
+                  Global System Entry Protocol
+               </p>
+            </div>
+
+            <div className="mt-16 flex items-center gap-2">
+               <div className="flex -space-x-1">
+                  {[1,2,3].map(i => <div key={i} className="w-3.5 h-3.5 rounded-full bg-emerald-100 border border-white" />)}
+               </div>
+               <span className="text-[10px] font-black text-emerald-800/40 uppercase tracking-[0.3em]">ACTIVE SYSTEM</span>
+            </div>
+         </div>
+      </div>
+
+      {/* Right Auth Side - Compact Box with Bold Text */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 md:p-12 bg-[#fafbfc]">
+         {/* The Card Box */}
+         <div className="w-full max-w-[380px] bg-white border border-slate-100 p-10 rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 relative">
+            
+            <div className="mb-10">
+               <h2 className="text-[20px] font-black text-slate-900 tracking-tight leading-tight">Welcome to<br />Zeal Healing</h2>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Initialize Credentials</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-7">
+               
+               {/* Identity Field */}
+               <div className="space-y-2.5">
+                  <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Entry Identifier</label>
+                  <div className="relative group">
+                     <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                        <User className="w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                     </div>
+                     <input
+                        type="text"
+                        required
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="zeal_admin"
+                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
+                     />
+                  </div>
+               </div>
+
+               {/* Key Field */}
+               <div className="space-y-2.5">
+                  <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Security Pin</label>
+                  <div className="relative group">
+                     <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                        <Lock className="w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                     </div>
+                     <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full pl-12 pr-14 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
+                     />
+                     <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-800 hover:text-emerald-600 transition-all font-bold"
+                     >
+                        {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                     </button>
+                  </div>
+               </div>
+
+               {/* Error Display */}
+               {error && (
+                  <div className="flex items-center gap-3 px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-[10px] font-black uppercase tracking-widest">
+                     <div className="w-1.5 h-1.5 rounded-full bg-rose-600 shadow-[0_0_8px_rgba(225,29,72,0.4)]" />
+                     {error}
+                  </div>
+               )}
+
+               {/* Action Trigger - Softer Emerald Button */}
+               <div className="pt-3">
+                  <button
+                     type="submit"
+                     disabled={loading}
+                     className="w-full bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-2xl transition-all active:scale-[0.96] disabled:opacity-50 flex items-center justify-center gap-2 group shadow-lg shadow-emerald-100/50 overflow-hidden relative"
+                  >
+                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                     {loading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                     ) : (
+                        <>
+                           <span className="text-[12px] font-black uppercase tracking-[0.3em]">{isRegister ? 'Register' : 'Login'}</span>
+                           <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </>
+                     )}
+                  </button>
+               </div>
+            </form>
+
+            <div className="mt-10 flex flex-col items-center">
+               <button 
+                  onClick={() => setIsRegister(!isRegister)}
+                  className="text-[10px] font-black text-slate-400 hover:text-emerald-700 uppercase tracking-[0.2em] transition-colors border-b-2 border-slate-50 hover:border-emerald-100 pb-0.5"
+               >
+                  {isRegister ? 'Personnel Login' : 'Initialize Access'}
+               </button>
+            </div>
+         </div>
+      </div>
+
+   </div>
   );
 }

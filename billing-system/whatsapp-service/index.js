@@ -9,22 +9,25 @@ app.use(cors());
 app.use(express.json());
 
 let qrData = null;
-let clientStatus = 'DISCONNECTED'; // DISCONNECTED, QR_READY, CONNECTED
+let clientStatus = 'DISCONNECTED'; 
 
-// Define Chrome args for reliability
 const client = new Client({
     authStrategy: new LocalAuth(),
+    webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+    },
     puppeteer: {
         headless: true,
-        executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
         args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage', 
-            '--disable-accelerated-2d-canvas', 
-            '--no-first-run', 
-            '--no-zygote', 
-            '--disable-gpu'
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu',
+            '--disable-extensions'
         ]
     }
 });
@@ -32,7 +35,7 @@ const client = new Client({
 client.on('qr', async (qr) => {
     console.log('QR RECEIVED');
     clientStatus = 'QR_READY';
-    qrData = await qrcode.toDataURL(qr); // generate base64 image
+    qrData = await qrcode.toDataURL(qr); 
 });
 
 client.on('ready', () => {
@@ -55,7 +58,7 @@ client.on('auth_failure', msg => {
 client.on('disconnected', (reason) => {
     console.log('Client was logged out', reason);
     clientStatus = 'DISCONNECTED';
-    client.initialize(); // Reboot client automatically
+    client.initialize(); 
 });
 
 console.log('Initializing WhatsApp Client...');
@@ -88,28 +91,35 @@ app.post('/api/whatsapp/send', async (req, res) => {
     }
 
     try {
-        // Format phone number
-        // Clean all non-digits. Ensure India +91 defaults if passed as 10 digits
         let cleanPhone = String(phone).replace(/\D/g, '');
         if (cleanPhone.length === 10) {
             cleanPhone = '91' + cleanPhone; 
         }
         
-        const chatId = cleanPhone + '@c.us';
+        // --- SAFE SENDING LOGIC ---
+        // 1. Verify if number exists on WhatsApp first (Forces LID retrieval)
+        const numberId = await client.getNumberId(cleanPhone);
+        
+        if (!numberId) {
+            return res.status(404).json({ error: 'Number is not registered on WhatsApp' });
+        }
+
+        const chatId = numberId._serialized;
+        console.log(`Sending message to ${chatId}...`);
 
         let media = null;
-        // Verify file absolute path access
         if (filePath && fs.existsSync(filePath)) {
              try {
                  media = MessageMedia.fromFilePath(filePath);
              } catch(err) {
                  console.error('File Read Error:', err);
              }
-        } else if (filePath) {
-             console.log("File requested but not found at:", filePath);
         }
 
         const textMessage = message || "Please find your attached invoice.";
+
+        // 2. Add extra small delay for stability
+        await new Promise(r => setTimeout(r, 1500));
 
         if (media) {
              await client.sendMessage(chatId, media, { caption: textMessage });
