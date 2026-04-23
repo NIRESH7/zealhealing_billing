@@ -11,6 +11,7 @@ export default function Login() {
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,6 +19,13 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    if (isRegister && password !== confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
     try {
       if (isRegister) {
         await register(username, password);
@@ -26,7 +34,7 @@ export default function Login() {
       }
       navigate('/');
     } catch (err) {
-      setError(isRegister ? 'Personnel Sync Failed' : 'Authentication Invalid');
+      setError(isRegister ? 'Registration Failed' : 'Authentication Invalid');
     } finally {
       setLoading(false);
     }
@@ -73,19 +81,26 @@ export default function Login() {
 
       {/* Right Auth Side - Compact Box with Bold Text */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 md:p-12 bg-[#fafbfc]">
-         {/* The Card Box */}
-         <div className="w-full max-w-[380px] bg-white border border-slate-100 p-10 rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 relative">
+         {/* The Card Box - Premium Curved Rectangle */}
+         <div className="w-full max-w-[420px] bg-white border border-slate-100 p-12 rounded-[48px] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.05)] ring-1 ring-slate-900/5 relative">
             
-            <div className="mb-10">
-               <h2 className="text-[20px] font-black text-slate-900 tracking-tight leading-tight">Welcome to<br />Zeal Healing</h2>
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Initialize Credentials</p>
+            <div className="mb-10 text-center">
+               <h2 className="text-[26px] font-black text-slate-900 tracking-tight leading-tight">
+                  {isRegister ? 'Join System' : 'Welcome to'}<br />
+                  <span className="text-emerald-600">{isRegister ? 'Personnel' : 'Zeal Healing'}</span>
+               </h2>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-4">
+                  {isRegister ? 'Register New Account' : 'Initialize Credentials'}
+               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-7">
                
                {/* Identity Field */}
                <div className="space-y-2.5">
-                  <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Entry Identifier</label>
+                  <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">
+                     {isRegister ? 'Username' : 'Username'}
+                  </label>
                   <div className="relative group">
                      <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
                         <User className="w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
@@ -95,7 +110,7 @@ export default function Login() {
                         required
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="zeal_admin"
+                        placeholder="Type username here"
                         className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
                      />
                   </div>
@@ -103,7 +118,9 @@ export default function Login() {
 
                {/* Key Field */}
                <div className="space-y-2.5">
-                  <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Security Pin</label>
+                  <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">
+                     {isRegister ? 'Enter Password' : 'Password'}
+                  </label>
                   <div className="relative group">
                      <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
                         <Lock className="w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
@@ -126,9 +143,31 @@ export default function Login() {
                   </div>
                </div>
 
+               {/* Confirm Key Field (Only for Register) */}
+               {isRegister && (
+                  <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                     <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">
+                        Confirm Password
+                     </label>
+                     <div className="relative group">
+                        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                           <CheckCircle2 className="w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                        </div>
+                        <input
+                           type={showPassword ? "text" : "password"}
+                           required
+                           value={confirmPassword}
+                           onChange={(e) => setConfirmPassword(e.target.value)}
+                           placeholder="••••••••••••"
+                           className="w-full pl-12 pr-14 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
+                        />
+                     </div>
+                  </div>
+               )}
+
                {/* Error Display */}
                {error && (
-                  <div className="flex items-center gap-3 px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-[10px] font-black uppercase tracking-widest">
+                  <div className="flex items-center gap-3 px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-[10px] font-black uppercase tracking-widest leading-relaxed">
                      <div className="w-1.5 h-1.5 rounded-full bg-rose-600 shadow-[0_0_8px_rgba(225,29,72,0.4)]" />
                      {error}
                   </div>
@@ -146,7 +185,7 @@ export default function Login() {
                         <Loader2 className="w-5 h-5 animate-spin" />
                      ) : (
                         <>
-                           <span className="text-[12px] font-black uppercase tracking-[0.3em]">{isRegister ? 'Register' : 'Login'}</span>
+                           <span className="text-[12px] font-black uppercase tracking-[0.3em]">{isRegister ? 'Create Account' : 'Verify & Enter'}</span>
                            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </>
                      )}
@@ -159,7 +198,7 @@ export default function Login() {
                   onClick={() => setIsRegister(!isRegister)}
                   className="text-[10px] font-black text-slate-400 hover:text-emerald-700 uppercase tracking-[0.2em] transition-colors border-b-2 border-slate-50 hover:border-emerald-100 pb-0.5"
                >
-                  {isRegister ? 'Personnel Login' : 'Initialize Access'}
+                  {isRegister ? 'Already have an account? Login' : 'Need an account? Create one'}
                </button>
             </div>
          </div>

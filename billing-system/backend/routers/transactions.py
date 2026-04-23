@@ -348,15 +348,43 @@ async def delete_transaction(tx_id: str, db=Depends(get_db)):
 
 @router.post("/bulk-delete")
 async def bulk_delete(payload: dict, db=Depends(get_db)):
-    if payload.get("deleteAll"):
+    is_delete_all = payload.get("deleteAll", False)
+    
+    if is_delete_all:
+        # Wipe EVERYTHING related to transactions and customers
         await db.transactions.delete_many({})
-        await db.customers.delete_many({}) # Wipe customer frequency too
+        await db.customers.delete_many({})
+        # Also clear whatsapp history for a total wipe
+        await db.whatsapp_batches.delete_many({})
+        return {"message": "Database wiped clean (Transactions, Customers, Batches)."}
     else:
-        ids = [ObjectId(i) for i in payload.get("ids", [])]
-        # In a high-perf scenario, we'd decrement each customer here, 
-        # but for bulk selection, users usually want a fresh start or specific removals.
+        ids_raw = payload.get("ids", [])
+        if not ids_raw:
+            return {"message": "No IDs provided for deletion"}
+            
+        ids = [ObjectId(i) for i in ids_raw]
+        
+        # 1. Fetch transactions to update customer stats before deleting
+        cursor = db.transactions.find({"_id": {"$in": ids}})
+        transactions_to_delete = await cursor.to_list(length=len(ids))
+        
+        # 2. Update customer stats
+        for tx in transactions_to_delete:
+            phone = tx.get("phone")
+            amount = tx.get("amount", 0)
+            if phone:
+                await db.customers.update_one(
+                    {"phone": phone},
+                    {"$inc": {"total_spent": -amount, "total_transactions": -1}}
+                )
+        
+        # 3. Cleanup customers with 0 or less transactions
+        await db.customers.delete_many({"total_transactions": {"$lte": 0}})
+        
+        # 4. Finally delete the transactions
         await db.transactions.delete_many({"_id": {"$in": ids}})
-    return {"message": "Deleted"}
+        
+        return {"message": f"Deleted {len(ids)} transactions and updated customer stats."}
 
 @router.post("/{tx_id}/generate-invoice")
 async def create_invoice(tx_id: str, db=Depends(get_db)):
