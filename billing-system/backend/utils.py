@@ -263,11 +263,22 @@ def generate_invoice_pdf(transaction: dict):
     
     # Signatory
     sign_y = 100
+    
+    # Draw Signature Image (Top)
+    signature_path = os.path.join(base_dir, "signature.jpg")
+    if os.path.exists(signature_path):
+        try:
+            c.drawImage(signature_path, width - 170, sign_y + 35, width=100, height=45, preserveAspectRatio=True, mask='auto')
+        except Exception as e:
+            print(f"Error drawing signature: {e}")
+
+    # Text (Middle)
     c.setFont("Helvetica", 10)
-    c.drawCentredString(width - 120, sign_y + 40, "For :Zeal Healing")
-    # Image or Name
+    c.drawCentredString(width - 120, sign_y + 15, "From Zeal Healing")
+
+    # Image or Name (Bottom)
     c.setFont("Helvetica-BoldOblique", 12)
-    c.drawCentredString(width - 120, sign_y + 15, "Authorised Signatory")
+    c.drawCentredString(width - 120, sign_y, "Authorised Signatory")
     
     c.save()
     
