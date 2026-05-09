@@ -269,7 +269,7 @@ export default function Transactions() {
     setGeneratingId(tx.id);
     try {
       const res = await api.post(`/transactions/${tx.id}/generate-invoice`);
-      setSingleBill({ url: `http://localhost:8000${res.data.url}`, name: tx.name });
+      setSingleBill({ url: `http://3.89.148.127:8000${res.data.url}`, name: tx.name });
       setActiveTx(tx);
       fetchTransactions();
     } catch (err) { alert('Failed to generate'); }
@@ -461,7 +461,7 @@ export default function Transactions() {
                                 <button 
                                   onClick={() => {
                                     setActiveTx(tx);
-                                    tx.invoice_url ? setSingleBill({ url: `http://localhost:8000${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
+                                    tx.invoice_url ? setSingleBill({ url: `http://3.89.148.127:8000${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
                                   }} 
                                   className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded transition-all ${tx.invoice_url ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
                                   title={tx.invoice_url ? "View Bill" : "Generate Bill"}
