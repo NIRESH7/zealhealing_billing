@@ -85,6 +85,16 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
         del tx_dict["_id"]
     return tx_dict
 
+async def get_next_sequence(name):
+    """Get next sequence value for a counter (sequential IDs)"""
+    counter = await db.counters.find_one_and_update(
+        {"_id": name},
+        {"$inc": {"sequence_value": 1}},
+        upsert=True,
+        return_document=True
+    )
+    return counter["sequence_value"]
+
 @router.post("/upload")
 async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), current_user=Depends(get_current_user)):
     if not file.filename.endswith(('.xlsx', '.xls', '.csv')):
@@ -281,6 +291,10 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 if not clean_tx_id or clean_tx_id.lower() in ["nan", "total"]: continue
 
                 existing = await db.transactions.find_one({"transaction_id": clean_tx_id})
+                if existing: continue
+
+                # Get Sequential Invoice Number
+                invoice_num = await get_next_sequence("invoice_number")
 
                 # 4. Build Record
                 tx_obj = {
@@ -298,6 +312,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                     "total_amount": float(grand_total),
                     "status": "Verified",
                     "timestamp": datetime.utcnow(),
+                    "invoice_number": invoice_num,
                     "added_by": current_user["username"],
                     "batch_id": batch_id
                 }

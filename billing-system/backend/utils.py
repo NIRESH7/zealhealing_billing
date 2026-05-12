@@ -133,7 +133,8 @@ def generate_invoice_pdf(transaction: dict):
     c.setFont("Helvetica-Bold", 10)
     c.drawRightString(width - 50, header_y - 112, "Invoice Details")
     c.setFont("Helvetica", 9)
-    c.drawRightString(width - 50, header_y - 129, f"Invoice No. : ZH{fy}/{transaction.get('transaction_id')[:6]}")
+    inv_num = transaction.get('invoice_number', transaction.get('transaction_id', '')[:6])
+    c.drawRightString(width - 50, header_y - 129, f"Invoice No. : ZH{fy}/{inv_num}")
     c.drawRightString(width - 50, header_y - 144, f"Date : {now.strftime('%d-%m-%Y')}")
     
     # --- Table Header ---
