@@ -157,6 +157,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 raw_name = str(row[col_map["name"]].value if len(row) > col_map["name"] else "").strip()
                 raw_phone = str(row[col_map["phone"]].value if len(row) > col_map["phone"] else "").strip()
                 raw_tx_id = str(row[col_map["transaction_id"]].value if len(row) > col_map["transaction_id"] else "").strip()
+                raw_excel_amount = row[col_map["amount"]].value if col_map["amount"] != -1 and len(row) > col_map["amount"] else None
                 
                 if not raw_name or raw_name.lower() in ["none", "nan", "total", "customer name"]: continue
                 
@@ -219,9 +220,24 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                     gst_rate = Decimal(str(product["gst_rate"] if location == "India" else 0))
                     
                     # Rounding each step
-                    item_subtotal = (price * qty).quantize(Decimal("0.01"))
-                    gst_amount = (item_subtotal * gst_rate / 100).quantize(Decimal("0.01"))
-                    item_total = item_subtotal + gst_amount
+                    # PREFER EXCEL AMOUNT IF SINGLE ITEM
+                    if raw_excel_amount and len(parsed_items) == 1:
+                        try:
+                            # Use Excel amount as the Inclusive Total
+                            item_total = Decimal(str(raw_excel_amount)).quantize(Decimal("0.01"))
+                            item_subtotal = (item_total / (1 + (gst_rate / 100))).quantize(Decimal("0.01"))
+                            gst_amount = item_total - item_subtotal
+                            # For the invoice display, we use the backing out price
+                            price = (item_subtotal / qty).quantize(Decimal("0.01"))
+                        except:
+                            # Fallback if amount is invalid
+                            item_subtotal = (price * qty).quantize(Decimal("0.01"))
+                            gst_amount = (item_subtotal * gst_rate / 100).quantize(Decimal("0.01"))
+                            item_total = item_subtotal + gst_amount
+                    else:
+                        item_subtotal = (price * qty).quantize(Decimal("0.01"))
+                        gst_amount = (item_subtotal * gst_rate / 100).quantize(Decimal("0.01"))
+                        item_total = item_subtotal + gst_amount
                     
                     subtotal += item_subtotal
                     total_gst += gst_amount
@@ -245,7 +261,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                         "gst_rate": float(gst_rate),
                         "gst_amount": float(gst_amount),
                         "total": float(item_total.quantize(Decimal("0.01"))),
-                        "hsn": product.get("hsn_code", "9983")
+                        "hsn": product.get("hsn_code", product.get("hsn", "9983"))
                     })
 
                 grand_total = subtotal + total_gst + Decimal(str(shipping)).quantize(Decimal("0.01"))
