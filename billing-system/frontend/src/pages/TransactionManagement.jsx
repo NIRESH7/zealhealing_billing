@@ -4,14 +4,14 @@ export default function TransactionManagement() {
     return (
         <React.Fragment>
             
-<!-- SideNavBar (Shared Component) -->
+{/* SideNavBar (Shared Component) */}
 <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-100 flex flex-col p-6 space-y-4 border-none z-50">
 <div className="mb-8">
 <h1 className="text-xl font-black text-slate-900 tracking-tight">Financial Architect</h1>
 <p className="text-xs text-slate-500 font-semibold uppercase tracking-widest mt-1">Billing Management</p>
 </div>
 <nav className="flex-1 space-y-2">
-<!-- Active state logic: Transactions screen active -->
+{/* Active state logic: Transactions screen active */}
 <a className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-200 transition-colors rounded-lg scale-95 active:scale-100 transition-transform" href="#">
 <span className="material-symbols-outlined">dashboard</span>
 <span className="font-['Manrope'] font-semibold tracking-tight">Dashboard</span>
@@ -44,7 +44,7 @@ export default function TransactionManagement() {
             </button>
 </div>
 </aside>
-<!-- TopAppBar (Shared Component) -->
+{/* TopAppBar (Shared Component) */}
 <header className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl flex justify-between items-center px-8 py-3 ml-64 shadow-sm">
 <div className="flex items-center flex-1 max-w-xl">
 <div className="relative w-full">
@@ -64,9 +64,9 @@ export default function TransactionManagement() {
 </div>
 </div>
 </header>
-<!-- Main Content -->
+{/* Main Content */}
 <main className="ml-64 p-8 min-h-screen">
-<!-- Header Section -->
+{/* Header Section */}
 <section className="mb-10">
 <div className="flex justify-between items-end mb-6">
 <div>
@@ -80,7 +80,7 @@ export default function TransactionManagement() {
                     </button>
 </div>
 </div>
-<!-- Bento Filter Bar -->
+{/* Bento Filter Bar */}
 <div className="grid grid-cols-12 gap-4">
 <div className="col-span-8 flex gap-2">
 <button className="px-6 py-2 bg-primary text-on-primary rounded-full text-sm font-semibold shadow-sm">All</button>
@@ -98,7 +98,7 @@ export default function TransactionManagement() {
 </div>
 </div>
 </section>
-<!-- Transaction List Shell -->
+{/* Transaction List Shell */}
 <section className="bg-surface-container-low rounded-xl p-4">
 <div className="bg-surface-container-lowest rounded-xl overflow-hidden">
 <table className="w-full border-collapse">
@@ -113,7 +113,7 @@ export default function TransactionManagement() {
 </tr>
 </thead>
 <tbody className="divide-y divide-transparent">
-<!-- Row 1: Verified -->
+{/* Row 1: Verified */}
 <tr className="hover:bg-surface-container transition-colors group">
 <td className="px-6 py-6">
 <div className="flex items-center gap-4">
@@ -150,7 +150,7 @@ export default function TransactionManagement() {
 </div>
 </td>
 </tr>
-<!-- Row 2: Pending -->
+{/* Row 2: Pending */}
 <tr className="hover:bg-surface-container transition-colors group">
 <td className="px-6 py-6">
 <div className="flex items-center gap-4">
@@ -187,7 +187,7 @@ export default function TransactionManagement() {
 </div>
 </td>
 </tr>
-<!-- Row 3: Rejected -->
+{/* Row 3: Rejected */}
 <tr className="hover:bg-surface-container transition-colors group">
 <td className="px-6 py-6">
 <div className="flex items-center gap-4">
@@ -224,7 +224,7 @@ export default function TransactionManagement() {
 </div>
 </td>
 </tr>
-<!-- Row 4: Verified -->
+{/* Row 4: Verified */}
 <tr className="hover:bg-surface-container transition-colors group">
 <td className="px-6 py-6">
 <div className="flex items-center gap-4">
@@ -264,7 +264,7 @@ export default function TransactionManagement() {
 </tbody>
 </table>
 </div>
-<!-- Pagination/Footer -->
+{/* Pagination/Footer */}
 <div className="flex items-center justify-between mt-6 px-4">
 <span className="text-sm font-medium text-on-surface-variant font-body">Showing 4 of 128 transactions</span>
 <div className="flex gap-1">
@@ -280,7 +280,7 @@ export default function TransactionManagement() {
 </div>
 </div>
 </section>
-<!-- Dynamic Insights Panel (Asymmetric Design) -->
+{/* Dynamic Insights Panel (Asymmetric Design) */}
 <section className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
 <div className="col-span-2 bg-primary rounded-2xl p-8 relative overflow-hidden group">
 <div className="relative z-10 flex justify-between items-start">
@@ -294,7 +294,7 @@ export default function TransactionManagement() {
 <div className="text-[10px] text-white/60 font-bold uppercase tracking-widest mt-1">Pending Items</div>
 </div>
 </div>
-<!-- Abstract Design Elements -->
+{/* Abstract Design Elements */}
 <div className="absolute -right-12 -bottom-12 h-64 w-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700"></div>
 </div>
 <div className="bg-surface-container-low rounded-2xl p-8 flex flex-col justify-between border-none">
@@ -317,7 +317,7 @@ export default function TransactionManagement() {
 </div>
 </section>
 </main>
-<!-- Floating Action Button (Suppressing for focused transaction list but kept contextually if primary goal was creation, here we follow shell rules - hidden on sub-pages if transactional) -->
+{/* Floating Action Button (Suppressing for focused transaction list but kept contextually if primary goal was creation, here we follow shell rules - hidden on sub-pages if transactional) */}
 
         </React.Fragment>
     );

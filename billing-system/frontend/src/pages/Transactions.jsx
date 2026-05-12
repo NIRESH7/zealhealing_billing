@@ -1,7 +1,243 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText } from 'lucide-react';
+import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText, Calendar, Package, Check } from 'lucide-react';
+
+// --- Export Analytics Modal ---
+function ExportModal({ onClose }) {
+  const [filterMode, setFilterMode] = useState('date'); // 'date' | 'product' | 'both'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [products, setProducts] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  useEffect(() => {
+    api.get('/products').then(res => {
+      setProducts(res.data);
+      setLoadingProducts(false);
+    }).catch(() => setLoadingProducts(false));
+  }, []);
+
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(productSearch.toLowerCase())
+  );
+
+  const toggleProduct = (name) => {
+    setSelectedProducts(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
+
+  const handleExport = async () => {
+    setLoading(true);
+    try {
+      const payload = {};
+      if (filterMode === 'date' || filterMode === 'both') {
+        if (startDate) payload.start_date = startDate;
+        if (endDate) payload.end_date = endDate;
+      }
+      if (filterMode === 'product' || filterMode === 'both') {
+        if (selectedProducts.length > 0) payload.products = selectedProducts;
+      }
+
+      const response = await api.post('/transactions/export-analytics', payload, {
+        responseType: 'blob'
+      });
+
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      const filename = `Zeal_Analytics_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup with a slight delay
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      onClose();
+    } catch {
+      alert('Export failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterTabs = [
+    { key: 'date', label: 'By Date', icon: Calendar },
+    { key: 'product', label: 'By Product', icon: Package },
+    { key: 'both', label: 'Both Filters', icon: Filter },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[101] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+      <div className="bg-white w-full max-w-lg rounded-[28px] border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
+          <div>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <Download className="w-5 h-5 text-emerald-500" />
+              Export Analytics
+            </h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Download filtered report as Excel</p>
+          </div>
+          <button onClick={onClose} className="p-2.5 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Filter Mode Tabs */}
+        <div className="px-8 pt-6">
+          <div className="flex bg-slate-100 p-1 rounded-2xl">
+            {filterTabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setFilterMode(tab.key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                  filterMode === tab.key
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filter Content */}
+        <div className="px-8 py-6 space-y-5 max-h-[400px] overflow-y-auto">
+          {/* Date Range Filter */}
+          {(filterMode === 'date' || filterMode === 'both') && (
+            <div className="space-y-4">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Date Range</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-600/10 focus:border-emerald-400 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-600/10 focus:border-emerald-400 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              {startDate && endDate && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-xl">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-[10px] font-bold text-emerald-700">{startDate} → {endDate}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Product Filter */}
+          {(filterMode === 'product' || filterMode === 'both') && (
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Filter by Products</label>
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-500" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={productSearch}
+                  onChange={e => setProductSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-600/10 focus:border-emerald-400 outline-none transition-all"
+                />
+              </div>
+              {selectedProducts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedProducts.map(name => (
+                    <span key={name} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black border border-emerald-100">
+                      {name}
+                      <button onClick={() => toggleProduct(name)} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                  <button onClick={() => { setSelectedProducts([]); setStartDate(''); setEndDate(''); }} className="text-[9px] font-black text-rose-400 hover:text-rose-600 uppercase tracking-widest px-2 transition-colors">Reset All</button>
+                </div>
+              )}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl max-h-[180px] overflow-y-auto">
+                {loadingProducts ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-4 h-4 animate-spin text-emerald-500" /></div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="text-center py-6 text-[11px] font-bold text-slate-400">No products found</div>
+                ) : (
+                  filteredProducts.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => toggleProduct(p.name)}
+                      className={`flex items-center justify-between px-4 py-2.5 cursor-pointer transition-all border-b border-slate-100 last:border-b-0 ${
+                        selectedProducts.includes(p.name)
+                          ? 'bg-emerald-50/80'
+                          : 'hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                          selectedProducts.includes(p.name)
+                            ? 'bg-emerald-600 border-emerald-600'
+                            : 'border-slate-300'
+                        }`}>
+                          {selectedProducts.includes(p.name) && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-700">{p.name}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400">{p.category || ''}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 py-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+          <div className="text-[10px] font-bold text-slate-400">
+            {filterMode === 'date' && (startDate || endDate) && '📅 Date filter active'}
+            {filterMode === 'product' && selectedProducts.length > 0 && `📦 ${selectedProducts.length} products selected`}
+            {filterMode === 'both' && (
+              <span>
+                {(startDate || endDate) ? '📅 ' : ''}{selectedProducts.length > 0 ? `📦 ${selectedProducts.length} products` : ''}
+              </span>
+            )}
+            {filterMode === 'date' && !startDate && !endDate && '⚡ All records will be exported'}
+            {filterMode === 'product' && selectedProducts.length === 0 && '⚡ All records will be exported'}
+            {filterMode === 'both' && !startDate && !endDate && selectedProducts.length === 0 && '⚡ All records will be exported'}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-5 py-2.5 text-[10px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">Cancel</button>
+            <button
+              onClick={handleExport}
+              disabled={loading}
+              className="px-8 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-600 shadow-lg shadow-emerald-100 transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {loading ? 'Generating...' : 'Download Excel'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- Simplified Edit Modal (SaaS Style) ---
 // --- SaaS Multi-Product Search & Bill Creator ---
@@ -68,7 +304,7 @@ function CreateModal({ onClose, onSave }) {
     try {
       await api.post('/transactions/manual', formData);
       onSave();
-    } catch (err) { alert('Creation failed'); }
+    } catch { alert('Creation failed'); }
     finally { setLoading(false); }
   };
 
@@ -164,8 +400,66 @@ function CreateModal({ onClose, onSave }) {
   );
 }
 
+// --- Edit Modal (Simple SaaS Style) ---
+function EditModal({ tx, onClose, onSave }) {
+  const [formData, setFormData] = useState({ ...tx });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.put(`/transactions/${tx.id}`, formData);
+      onSave();
+    } catch { alert('Update failed'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[101] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+      <div className="bg-white w-full max-w-lg rounded-[28px] border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight">Edit Transaction</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Direct Record Modification</p>
+          </div>
+          <button onClick={onClose} className="p-2.5 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all"><X className="w-5 h-5" /></button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-8 space-y-5">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Customer Name</label>
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Phone Number</label>
+              <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Transaction ID</label>
+              <input type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id: e.target.value})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Total Amount (₹)</label>
+              <input type="number" value={formData.total_amount} onChange={e => setFormData({...formData, total_amount: Number(e.target.value)})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-6">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 text-[10px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">Cancel</button>
+            <button type="submit" disabled={loading} className="px-8 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50">
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Transactions() {
-  const { user } = useOutletContext();
+  useOutletContext();
   const navigate = useNavigate();
   const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
@@ -181,20 +475,31 @@ export default function Transactions() {
   const [activeTx, setActiveTx] = useState(null); 
   const [generatingId, setGeneratingId] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
-  const fetchTransactions = async () => {
+  const duplicateIds = React.useMemo(() => {
+    const counts = {};
+    data.items.forEach(item => {
+      if (item.transaction_id && item.transaction_id !== '--') {
+        counts[item.transaction_id] = (counts[item.transaction_id] || 0) + 1;
+      }
+    });
+    return new Set(Object.keys(counts).filter(id => counts[id] > 1));
+  }, [data.items]);
+
+  const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/transactions/', {
         params: { skip: page * pageSize, limit: pageSize, search, status, latest_batch_only: latestBatchOnly }
       });
       setData(res.data);
-    } catch (err) { console.error(err); }
+    } catch { console.error("Fetch failed"); }
     finally { setLoading(false); }
-  };
+  }, [page, pageSize, search, status, latestBatchOnly]);
 
-  useEffect(() => { fetchTransactions(); }, [page, status, latestBatchOnly]);
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
   const handleSearch = (e) => { e.preventDefault(); setPage(0); fetchTransactions(); };
   const toggleSelect = (id) => { setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); };
@@ -219,15 +524,20 @@ export default function Transactions() {
       const blob = new Blob([response.data], { type: 'application/zip' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
+      link.style.display = 'none';
       link.href = url;
-      link.setAttribute('download', `Zeal_Invoices_${new Date().toISOString().split('T')[0]}.zip`);
+      const filename = `Zeal_Invoices_${new Date().toISOString().split('T')[0]}.zip`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
+      
+      // Cleanup with a slight delay
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    } catch {
       alert('Export failed. Please ensure the backend is running and you have selected valid entries.');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -239,10 +549,10 @@ export default function Transactions() {
     
     setSendingWhatsApp(true);
     try {
-      const res = await api.post('/transactions/bulk-whatsapp', { ids: selected });
+      const _res = await api.post('/transactions/bulk-whatsapp', { ids: selected });
       setSelected([]);
       navigate('/whatsapp-monitor'); // Redirect to monitor
-    } catch (err) {
+    } catch {
       alert('Bulk send failed. Ensure WhatsApp service is online.');
     } finally {
       setSendingWhatsApp(false);
@@ -254,7 +564,7 @@ export default function Transactions() {
     try {
       await api.post('/transactions/bulk-delete', { ids: selectAllAll ? [] : selected, deleteAll: selectAllAll, status, search, latest_batch_only: latestBatchOnly });
       setSelected([]); setSelectAllAll(false); fetchTransactions();
-    } catch (err) { alert('Operation failed'); }
+    } catch { alert('Operation failed'); }
   };
 
   const handleWipeAll = async () => {
@@ -262,17 +572,17 @@ export default function Transactions() {
     try {
       await api.post('/transactions/bulk-delete', { ids: [], deleteAll: true });
       setSelected([]); setSelectAllAll(false); fetchTransactions();
-    } catch (err) { alert('Wipe failed'); }
+    } catch { alert('Wipe failed'); }
   };
 
   const generateInvoice = async (tx) => {
     setGeneratingId(tx.id);
     try {
       const res = await api.post(`/transactions/${tx.id}/generate-invoice`);
-      setSingleBill({ url: `http://3.89.148.127:8000${res.data.url}`, name: tx.name });
+      setSingleBill({ url: `http://localhost:8000${res.data.url}`, name: tx.name });
       setActiveTx(tx);
       fetchTransactions();
-    } catch (err) { alert('Failed to generate'); }
+    } catch { alert('Failed to generate'); }
     finally { setGeneratingId(null); }
   };
 
@@ -281,6 +591,8 @@ export default function Transactions() {
   return (
     <>
       {isCreateModalOpen && <CreateModal onClose={() => setIsCreateModalOpen(false)} onSave={() => { setIsCreateModalOpen(false); fetchTransactions(); }} />}
+      {isExportModalOpen && <ExportModal onClose={() => setIsExportModalOpen(false)} />}
+      {editingTx && <EditModal tx={editingTx} onClose={() => setEditingTx(null)} onSave={() => { setEditingTx(null); fetchTransactions(); }} />}
       
       {singleBill && (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
@@ -340,10 +652,10 @@ export default function Transactions() {
               New Entry
             </button>
             <button 
-              onClick={handleBulkExport}
-              disabled={loading || selected.length === 0}
-              className="px-4 py-2 text-[11px] font-black uppercase tracking-wider bg-white border border-slate-200 text-slate-500 rounded-lg hover:border-emerald-400 hover:text-emerald-600 transition-all disabled:opacity-50"
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-5 py-2 text-[11px] font-black uppercase tracking-wider bg-white border border-slate-200 text-slate-500 rounded-lg hover:border-emerald-400 hover:text-emerald-600 transition-all flex items-center gap-2"
             >
+              <Download className="w-3.5 h-3.5" />
               Export
             </button>
             <button onClick={handleWipeAll} className="px-4 py-2 text-[11px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 rounded-lg transition-all">Clear All</button>
@@ -375,10 +687,24 @@ export default function Transactions() {
                 Send Bills
               </button>
               <button 
+                onClick={handleBulkExport}
+                disabled={loading}
+                className="px-6 py-2.5 bg-white text-emerald-600 border border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                Download ZIP
+              </button>
+              <button 
                 onClick={handleBulkDelete} 
                 className="px-6 py-2.5 bg-white text-rose-500 border border-rose-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 transition-all shadow-sm"
               >
                 Destroy Logs
+              </button>
+              <button 
+                onClick={() => { setSelected([]); setSelectAllAll(false); }}
+                className="px-6 py-2.5 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                Clear Selection
               </button>
             </div>
           </div>
@@ -390,8 +716,17 @@ export default function Transactions() {
             <input 
               type="text" placeholder="Search by name, phone, transaction ID..." 
               value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 text-[13px] font-black text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400"
+              className="w-full pl-11 pr-12 py-2.5 text-[13px] font-black text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400"
             />
+            {search && (
+              <button 
+                type="button"
+                onClick={() => { setSearch(''); setPage(0); }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-300 hover:text-slate-600 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </form>
           <div className="relative w-full md:w-48">
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
@@ -424,7 +759,9 @@ export default function Transactions() {
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Customer</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Phone</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Transaction ID</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Amount</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Total</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Paid</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Balance</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Items</th>
                       <th className="px-4 py-3 text-center text-[11px] font-black text-slate-500 uppercase tracking-wider">Action</th>
                     </tr>
@@ -432,9 +769,10 @@ export default function Transactions() {
                   <tbody className="divide-y divide-slate-100">
                     {data.items.map((tx) => {
                       const isSelected = selected.includes(tx.id);
+                      const isDuplicate = tx.transaction_id && duplicateIds.has(tx.transaction_id);
                       return (
-                        <tr key={tx.id} className={`transition-colors ${isSelected ? 'bg-emerald-50/30' : 'hover:bg-slate-50/50'}`}>
-                          <td className="px-4 py-2.5 text-center border-r border-slate-100">
+                        <tr key={tx.id} className={`transition-colors ${isSelected ? 'bg-emerald-50/30' : isDuplicate ? 'bg-rose-50/60' : 'hover:bg-slate-50/50'}`}>
+                          <td className={`px-4 py-2.5 text-center border-r border-slate-100 ${isDuplicate ? 'border-r-rose-200' : ''}`}>
                             <button onClick={() => toggleSelect(tx.id)} className={`p-1 transition-all ${isSelected ? 'text-emerald-600' : 'text-slate-300 hover:text-slate-600'}`}>
                               {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                             </button>
@@ -446,10 +784,27 @@ export default function Transactions() {
                           <td className="px-4 py-2.5 border-r border-slate-100">
                             <span className="text-[12px] font-black text-slate-600">{tx.phone}</span>
                           </td>
-                          <td className="px-4 py-2.5 border-r border-slate-100">
-                             <div className="font-mono text-[11px] font-black text-slate-400 truncate max-w-[160px]">{tx.transaction_id}</div>
+                          <td className={`px-4 py-2.5 border-r border-slate-100 ${isDuplicate ? 'border-r-rose-200' : ''}`}>
+                             <div className="flex items-center gap-2">
+                                <div className={`font-mono text-[11px] font-black truncate max-w-[160px] ${isDuplicate ? 'text-rose-600' : 'text-slate-400'}`}>
+                                  {tx.transaction_id}
+                                </div>
+                                {isDuplicate && <AlertTriangle className="w-3 h-3 text-rose-500" />}
+                             </div>
                           </td>
-                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">₹{Number(tx.total_amount || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-2.5 text-[12px] font-black text-emerald-600 border-r border-slate-100">
+                            {(tx.paid_amount !== undefined && tx.paid_amount !== null) ? `₹${Number(tx.paid_amount).toLocaleString('en-IN')}` : 'null'}
+                          </td>
+                          <td className="px-4 py-2.5 text-[12px] font-black border-r border-slate-100">
+                            {(tx.balance !== undefined && tx.balance !== null) ? (
+                              <span className={tx.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}>
+                                ₹{Number(tx.balance).toLocaleString('en-IN')}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">null</span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
                             <p className="text-[12px] font-black text-slate-600 truncate max-w-[200px]" title={tx.product}>{tx.product || '-'}</p>
                           </td>
@@ -461,7 +816,7 @@ export default function Transactions() {
                                 <button 
                                   onClick={() => {
                                     setActiveTx(tx);
-                                    tx.invoice_url ? setSingleBill({ url: `http://3.89.148.127:8000${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
+                                    tx.invoice_url ? setSingleBill({ url: `http://localhost:8000${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
                                   }} 
                                   className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded transition-all ${tx.invoice_url ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
                                   title={tx.invoice_url ? "View Bill" : "Generate Bill"}
@@ -469,8 +824,17 @@ export default function Transactions() {
                                   View
                                 </button>
                               )}
-                              <button onClick={() => setEditingTx(tx)} className="text-slate-300 hover:text-emerald-600 transition-all"><Edit3 className="w-4 h-4" /></button>
-                              <button onClick={async () => { if(window.confirm('Delete entry?')) { await api.delete(`/transactions/${tx.id}`); fetchTransactions(); } }} className="text-slate-300 hover:text-rose-500 transition-all"><Trash2 className="w-4 h-4" /></button>
+                              <button onClick={() => setEditingTx(tx)} className="text-slate-400 hover:text-emerald-600 transition-all"><Edit3 className="w-4 h-4" /></button>
+                              <button onClick={async () => { 
+                                if(window.confirm('Are you sure you want to delete this entry?')) { 
+                                  try {
+                                    await api.delete(`/transactions/${tx.id}`); 
+                                    fetchTransactions(); 
+                                  } catch {
+                                    alert('Failed to delete transaction. Please try again.');
+                                  }
+                                } 
+                              }} className="text-slate-400 hover:text-rose-500 transition-all"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>

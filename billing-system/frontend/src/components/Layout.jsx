@@ -171,15 +171,6 @@ export default function Layout() {
                        </div>
                     </div>
                     <div className="space-y-1">
-                       <button onClick={() => {navigate('/settings'); setIsProfileOpen(false);}} className="w-full flex items-center gap-3 px-4 py-2 text-[12px] font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-all">
-                          <UserIcon className="w-4 h-4 text-emerald-500" />
-                          Account Portal
-                       </button>
-                       <button onClick={() => {navigate('/settings'); setIsProfileOpen(false);}} className="w-full flex items-center gap-3 px-4 py-2 text-[12px] font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-all">
-                          <SettingsIcon className="w-4 h-4 text-emerald-500" />
-                          System Preferences
-                       </button>
-                       <div className="h-px bg-slate-100 mx-2 my-2" />
                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-[12px] font-bold text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
                           <LogOut className="w-4 h-4" />
                           Terminate Session

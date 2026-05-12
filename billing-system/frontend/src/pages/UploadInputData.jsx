@@ -4,7 +4,7 @@ export default function UploadInputData() {
     return (
         <React.Fragment>
             
-<!-- SideNavBar Anchor -->
+{/* SideNavBar Anchor */}
 <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-100 dark:bg-slate-900 flex flex-col p-6 space-y-4 font-['Manrope'] font-semibold tracking-tight">
 <div className="mb-8">
 <h1 className="text-xl font-black text-slate-900 dark:text-white">Financial Architect</h1>
@@ -41,9 +41,9 @@ export default function UploadInputData() {
             Create Invoice
         </button>
 </aside>
-<!-- Main Content Area -->
+{/* Main Content Area */}
 <main className="ml-64 min-h-screen bg-surface">
-<!-- TopAppBar Anchor -->
+{/* TopAppBar Anchor */}
 <header className="sticky top-0 z-40 w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl flex justify-between items-center px-8 py-3 shadow-sm dark:shadow-none">
 <div className="flex items-center flex-1">
 <div className="relative w-full max-w-md">
@@ -64,13 +64,13 @@ export default function UploadInputData() {
 </div>
 </header>
 <div className="p-10 space-y-10">
-<!-- Header Section -->
+{/* Header Section */}
 <section className="flex justify-between items-end">
 <div>
 <h2 className="text-4xl font-extrabold text-on-surface tracking-tight">Upload Data</h2>
 <p className="text-on-surface-variant mt-2 text-lg">Ingest your financial records via bulk upload or manual entry.</p>
 </div>
-<!-- Bulk Processing Status Indicator (Bento-style element) -->
+{/* Bulk Processing Status Indicator (Bento-style element) */}
 <div className="bg-surface-container-low p-4 rounded-xl flex items-center gap-4 min-w-[280px]">
 <div className="relative flex items-center justify-center">
 <svg className="w-12 h-12 transform -rotate-90">
@@ -85,9 +85,9 @@ export default function UploadInputData() {
 </div>
 </div>
 </section>
-<!-- Main Interactive Zone: Asymmetric Bento Layout -->
+{/* Main Interactive Zone: Asymmetric Bento Layout */}
 <div className="grid grid-cols-12 gap-8 items-start">
-<!-- Left Column: Drag and Drop Zone -->
+{/* Left Column: Drag and Drop Zone */}
 <div className="col-span-12 lg:col-span-7 space-y-8">
 <div className="bg-surface-container-lowest p-1 rounded-xl shadow-sm border border-outline-variant/10">
 <div className="border-2 border-dashed border-outline-variant/30 rounded-lg p-16 flex flex-col items-center justify-center text-center space-y-4 hover:bg-surface-container-low transition-all duration-300 group cursor-pointer">
@@ -103,7 +103,7 @@ export default function UploadInputData() {
                             </button>
 </div>
 </div>
-<!-- Guidance Cards -->
+{/* Guidance Cards */}
 <div className="grid grid-cols-2 gap-4">
 <div className="bg-surface-container-low p-6 rounded-xl">
 <span className="material-symbols-outlined text-tertiary mb-3" data-icon="schema">schema</span>
@@ -117,7 +117,7 @@ export default function UploadInputData() {
 </div>
 </div>
 </div>
-<!-- Right Column: Manual Entry Form (Glassmorphism inspired card) -->
+{/* Right Column: Manual Entry Form (Glassmorphism inspired card) */}
 <div className="col-span-12 lg:col-span-5">
 <div className="bg-surface-container-lowest/80 backdrop-blur-xl p-8 rounded-xl shadow-sm border border-outline-variant/20">
 <h3 className="text-xl font-bold text-on-surface mb-6 flex items-center gap-2">
@@ -168,7 +168,7 @@ export default function UploadInputData() {
 </div>
 </div>
 </div>
-<!-- Recent Activity Table (No-Line UI) -->
+{/* Recent Activity Table (No-Line UI) */}
 <section className="bg-surface-container-low rounded-xl p-8">
 <div className="flex justify-between items-center mb-6">
 <h3 className="text-xl font-bold text-on-surface">Recent Processed Batch</h3>

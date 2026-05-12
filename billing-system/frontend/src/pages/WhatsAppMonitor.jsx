@@ -26,7 +26,7 @@ export default function WhatsAppMonitor() {
       if (res.data && res.data.items) {
         setBatch(res.data);
       }
-    } catch (err) {
+    } catch {
       console.error('Status fetch failed');
     } finally {
       setLoading(false);

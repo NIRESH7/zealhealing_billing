@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useEffect } from 'react';
 import api from '../services/api';
 
@@ -14,9 +15,10 @@ export const AuthProvider = ({ children }) => {
         try {
           const { data } = await api.get('/auth/me');
           setUser(data);
-        } catch (error) {
+        } catch {
           console.error("Token invalid or expired");
           localStorage.removeItem('token');
+          setUser(null);
         }
       }
       setLoading(false);

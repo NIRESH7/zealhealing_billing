@@ -16,7 +16,7 @@ export default function WhatsAppLinkModal({ onClose }) {
         if (res.data.qr) {
           setQrCode(res.data.qr);
         }
-      } catch (error) {
+      } catch {
         setStatus('OFFLINE');
       }
     };

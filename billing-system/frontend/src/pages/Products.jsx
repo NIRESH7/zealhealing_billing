@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { Plus, Search, Edit3, Trash2, X, ChevronLeft, ChevronRight, Filter, Database, Package, Loader2 } from 'lucide-react';
 
@@ -23,25 +23,25 @@ export default function Products() {
     is_service: false
   });
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/products', { params: { search } });
       setProducts(res.data);
       setCurrentPage(1); 
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
+      console.error(_err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchProducts();
     }, 500);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [fetchProducts]);
 
   const handleOpenModal = (product = null) => {
     if (product) {
@@ -77,7 +77,7 @@ export default function Products() {
       try {
         await api.delete(`/products/${id}`);
         fetchProducts();
-      } catch (err) {
+      } catch {
         alert('Failed to delete product');
       }
     }
@@ -100,7 +100,7 @@ export default function Products() {
       }
       setIsModalOpen(false);
       fetchProducts();
-    } catch (err) {
+    } catch {
       alert('Failed to save product');
     }
   };

@@ -49,12 +49,15 @@ def get_hsn_details(product_name):
     return "9983", 18.0 # Default
 
 def generate_invoice_pdf(transaction: dict):
+    if not transaction:
+        raise ValueError("Transaction data is empty")
+        
     # Setup directory
     inv_dir = "uploads/invoices"
     os.makedirs(inv_dir, exist_ok=True)
     
     # Sanitize transaction ID for filename
-    raw_id = str(transaction.get('transaction_id', 'TXN')).strip()
+    raw_id = str(transaction.get('transaction_id', transaction.get('_id', 'TXN'))).strip()
     safe_tx_id = "".join([c if c.isalnum() else "_" for c in raw_id])[:15]
     
     file_name = f"INV-{safe_tx_id}-{uuid.uuid4().hex[:6]}.pdf"
@@ -205,7 +208,8 @@ def generate_invoice_pdf(transaction: dict):
     else:
         # Fallback for old/manual without list 
         hsn, rate = get_hsn_details(products_raw)
-        item_base = total_raw / (1 + (rate / 100))
+        rate_dec = Decimal(str(rate))
+        item_base = total_raw / (Decimal("1") + (rate_dec / Decimal("100")))
         item_gst = total_raw - item_base
         total_unit_price = item_base
         total_gst = item_gst
@@ -273,10 +277,18 @@ def generate_invoice_pdf(transaction: dict):
     c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica", 10)
     summary_y = calc_y - row_offset - 60
+    
+    paid_amount = transaction.get("paid_amount")
+    balance = transaction.get("balance")
+    
+    # If paid_amount is missing, default to total (old behavior) or as specified
+    display_paid = paid_amount if paid_amount is not None else rounded_total
+    display_balance = balance if balance is not None else 0.0
+    
     c.drawRightString(450, summary_y, "Received")
-    c.drawRightString(580, summary_y, f"{rounded_total:,.2f}")
+    c.drawRightString(580, summary_y, f"{display_paid:,.2f}")
     c.drawRightString(450, summary_y - 15, "Balance")
-    c.drawRightString(580, summary_y - 15, "0.00")
+    c.drawRightString(580, summary_y - 15, f"{display_balance:,.2f}")
     
     
     # Signatory

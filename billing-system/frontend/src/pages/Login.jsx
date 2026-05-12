@@ -33,7 +33,7 @@ export default function Login() {
         await login(username, password);
       }
       navigate('/');
-    } catch (err) {
+    } catch {
       setError(isRegister ? 'Registration Failed' : 'Authentication Invalid');
     } finally {
       setLoading(false);

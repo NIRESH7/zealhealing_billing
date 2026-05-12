@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { 
   BarChart, 
@@ -76,9 +75,9 @@ const MultiSelect = ({ icon: Icon, value, options, onChange, label }) => {
           </div>
           <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar pb-1">
             {filteredOptions.length === 0 && <div className="text-[10px] text-slate-400 p-4 text-center font-bold">No results</div>}
-            {filteredOptions.map(opt => (
+            {filteredOptions.map((opt, idx) => (
               <div 
-                key={opt}
+                key={`${opt}-${idx}`}
                 onClick={() => toggleOption(opt)}
                 className="flex items-center justify-between p-1.5 rounded-md cursor-pointer hover:bg-emerald-50 transition-colors"
               >
@@ -139,7 +138,7 @@ export default function Dashboard() {
       setTopCourses(coursesRes.data);
       setTopCustomers(customerRes.data);
       setFilters(filtersRes.data);
-    } catch (err) { console.error(err); } finally { 
+    } catch (_err) { console.error(_err); } finally { 
       setLoading(false); 
       setChartLoading(false);
     }
@@ -147,11 +146,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData(true);
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!loading) fetchData();
-  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits]);
+  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, fetchData, loading]);
 
   const kpiCards = [
     { label: 'Revenue', value: `₹${stats?.total_revenue?.toLocaleString() || '0'}`, icon: TrendingUp, color: 'text-emerald-600' },
@@ -230,7 +229,7 @@ export default function Dashboard() {
           </div>
           
           <div className="h-[380px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="99%" height={380}>
               <BarChart layout="vertical" data={history} margin={{ left: 10, right: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />

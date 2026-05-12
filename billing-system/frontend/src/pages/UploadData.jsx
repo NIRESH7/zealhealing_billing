@@ -1,6 +1,5 @@
 import React, { useState, useRef, useContext, useEffect } from 'react';
 import api from '../services/api';
-import { downloadTransactionTemplate } from '../utils/sample_generator';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, Download, Shield, RefreshCw, History, X, FileText, File, Plus, Check, AlertCircle, MessageSquare, Smartphone, Loader2 } from 'lucide-react';
 import { UploadContext } from '../context/UploadContext';
 import WhatsAppLinkModal from '../components/WhatsAppLinkModal';
@@ -21,7 +20,7 @@ export default function UploadData() {
       try {
         const res = await api.get('http://localhost:3001/api/whatsapp/status');
         setIsWaConnected(res.data.status === 'CONNECTED');
-      } catch (e) {
+      } catch {
         setIsWaConnected(false);
       }
     };

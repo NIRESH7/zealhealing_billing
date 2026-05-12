@@ -4,7 +4,7 @@ export default function CustomerDirectory() {
     return (
         <React.Fragment>
             
-<!-- SideNavBar Shell -->
+{/* SideNavBar Shell */}
 <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-100 dark:bg-slate-900 flex flex-col p-6 space-y-4">
 <div className="mb-8 flex items-center space-x-3">
 <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary">
@@ -28,7 +28,7 @@ export default function CustomerDirectory() {
 <span className="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
 <span>Transactions</span>
 </a>
-<!-- Active State: Customers -->
+{/* Active State: Customers */}
 <a className="flex items-center space-x-3 p-3 bg-slate-200 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg font-['Manrope'] font-semibold tracking-tight" href="#">
 <span className="material-symbols-outlined" data-icon="group">group</span>
 <span>Customers</span>
@@ -46,7 +46,7 @@ export default function CustomerDirectory() {
             Create Invoice
         </button>
 </aside>
-<!-- TopAppBar Shell -->
+{/* TopAppBar Shell */}
 <header className="sticky top-0 z-40 w-full flex justify-between items-center px-8 py-3 ml-64 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none border-b border-transparent">
 <div className="flex items-center w-1/2">
 <div className="relative w-full max-w-md">
@@ -72,10 +72,10 @@ export default function CustomerDirectory() {
 </div>
 </div>
 </header>
-<!-- Main Canvas -->
+{/* Main Canvas */}
 <main className="ml-64 p-8 min-h-screen">
 <div className="max-w-7xl mx-auto">
-<!-- Page Header -->
+{/* Page Header */}
 <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
 <div>
 <h1 className="text-4xl font-extrabold font-headline text-on-surface tracking-tight">Customer Database</h1>
@@ -91,7 +91,7 @@ export default function CustomerDirectory() {
 </button>
 </div>
 </div>
-<!-- Dashboard Stats Triptych (Bento Style) -->
+{/* Dashboard Stats Triptych (Bento Style) */}
 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
 <div className="bg-surface-container-lowest p-6 rounded-xl border border-transparent hover:border-outline-variant/20 transition-all group">
 <div className="flex items-center justify-between mb-4">
@@ -124,10 +124,10 @@ export default function CustomerDirectory() {
 <h3 className="text-3xl font-black font-headline">$3,420</h3>
 </div>
 </div>
-<!-- Customer List Table -->
+{/* Customer List Table */}
 <div className="bg-surface-container-low rounded-xl overflow-hidden p-1">
 <div className="bg-surface-container-lowest rounded-lg">
-<!-- Table Search & Filter Bar -->
+{/* Table Search & Filter Bar */}
 <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-container">
 <div className="flex items-center space-x-2">
 <h2 className="text-lg font-bold font-headline">Recent Customers</h2>
@@ -146,7 +146,7 @@ export default function CustomerDirectory() {
 </div>
 </div>
 </div>
-<!-- Precision Data Table -->
+{/* Precision Data Table */}
 <div className="overflow-x-auto">
 <table className="w-full text-left border-collapse">
 <thead>
@@ -160,7 +160,7 @@ export default function CustomerDirectory() {
 </tr>
 </thead>
 <tbody className="font-body text-sm">
-<!-- Row 1 -->
+{/* Row 1 */}
 <tr className="group hover:bg-surface-container-low transition-colors cursor-pointer">
 <td className="px-8 py-5">
 <div className="flex items-center space-x-4">
@@ -192,7 +192,7 @@ export default function CustomerDirectory() {
 </button>
 </td>
 </tr>
-<!-- Row 2 -->
+{/* Row 2 */}
 <tr className="group hover:bg-surface-container-low transition-colors cursor-pointer">
 <td className="px-8 py-5">
 <div className="flex items-center space-x-4">
@@ -224,7 +224,7 @@ export default function CustomerDirectory() {
 </button>
 </td>
 </tr>
-<!-- Row 3 -->
+{/* Row 3 */}
 <tr className="group hover:bg-surface-container-low transition-colors cursor-pointer">
 <td className="px-8 py-5">
 <div className="flex items-center space-x-4">
@@ -256,7 +256,7 @@ export default function CustomerDirectory() {
 </button>
 </td>
 </tr>
-<!-- Row 4 -->
+{/* Row 4 */}
 <tr className="group hover:bg-surface-container-low transition-colors cursor-pointer">
 <td className="px-8 py-5">
 <div className="flex items-center space-x-4">
@@ -288,7 +288,7 @@ export default function CustomerDirectory() {
 </button>
 </td>
 </tr>
-<!-- Row 5 -->
+{/* Row 5 */}
 <tr className="group hover:bg-surface-container-low transition-colors cursor-pointer">
 <td className="px-8 py-5">
 <div className="flex items-center space-x-4">
@@ -323,7 +323,7 @@ export default function CustomerDirectory() {
 </tbody>
 </table>
 </div>
-<!-- Pagination -->
+{/* Pagination */}
 <div className="p-6 border-t border-surface-container flex items-center justify-between">
 <span className="text-xs text-on-surface-variant font-medium">Showing <span className="text-on-surface font-bold">1-10</span> of 1,284 customers</span>
 <div className="flex items-center space-x-2">
@@ -346,7 +346,7 @@ export default function CustomerDirectory() {
 </div>
 </div>
 </main>
-<!-- Contextual FAB (Hidden as per hierarchy on details/list pages, but user requested modern clean view, so we omit unless necessary for specific action) -->
+{/* Contextual FAB (Hidden as per hierarchy on details/list pages, but user requested modern clean view, so we omit unless necessary for specific action) */}
 
         </React.Fragment>
     );
