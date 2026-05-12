@@ -85,7 +85,7 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
         del tx_dict["_id"]
     return tx_dict
 
-async def get_next_sequence(name):
+async def get_next_sequence(db, name):
     """Get next sequence value for a counter (sequential IDs)"""
     counter = await db.counters.find_one_and_update(
         {"_id": name},
@@ -294,7 +294,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 if existing: continue
 
                 # Get Sequential Invoice Number
-                invoice_num = await get_next_sequence("invoice_number")
+                invoice_num = await get_next_sequence(db, "invoice_number")
 
                 # 4. Build Record
                 tx_obj = {
