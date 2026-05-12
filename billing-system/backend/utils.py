@@ -69,8 +69,12 @@ def generate_invoice_pdf(transaction: dict):
     
     if os.path.exists(logo_path):
         try:
-            # Position at top right
-            c.drawImage(logo_path, width - 130, height - 100, width=80, height=80, preserveAspectRatio=True, mask='auto')
+            # Draw white background rectangle to avoid black backgrounds on transparent PNGs
+            c.setFillColorRGB(1, 1, 1)
+            c.rect(width - 145, height - 105, 110, 90, fill=1, stroke=0)
+            
+            # Position logo at top right
+            c.drawImage(logo_path, width - 140, height - 100, width=100, height=80, preserveAspectRatio=True, mask='auto')
         except Exception as e:
             print(f"Error drawing logo: {e}")
     
@@ -85,42 +89,43 @@ def generate_invoice_pdf(transaction: dict):
     
     c.setFont("Helvetica", 9)
     header_y = height - 65
-    c.drawString(50, header_y, "19/10A THIRUCHENGODE ROAD Namakkal")
-    c.drawString(50, header_y - 12, "Phone no. : 9025574750")
-    c.drawString(50, header_y - 24, "Email : baghyazeal@gmail.com")
-    c.drawString(50, header_y - 36, "GSTIN : 33BJJP8989Q1Z7")
-    c.drawString(50, header_y - 48, "State : 33-Tamil Nadu")
+    c.drawString(50, header_y, "1/A, Kollampatrai Street, Namakkal")
+    c.drawString(50, header_y - 12, "Tamil Nadu - 637001")
+    c.drawString(50, header_y - 24, "Phone no. : 9025574750")
+    c.drawString(50, header_y - 36, "Email : baghyazeal@gmail.com")
+    c.drawString(50, header_y - 48, "GSTIN : 33BJJP8989Q1Z7")
+    c.drawString(50, header_y - 60, "State : 33-Tamil Nadu")
     
     c.setFont("Helvetica-Bold", 9)
     c.setFillColorRGB(*branding_color)
-    c.drawString(50, header_y - 60, "Web : https://zealhealing.com/")
+    c.drawString(50, header_y - 72, "Web : https://zealhealing.com/")
     
     # Horizontal Line
     c.setLineWidth(1.5)
     c.setStrokeColorRGB(*branding_color)
-    c.line(50, header_y - 67, width - 50, header_y - 67)
+    c.line(50, header_y - 79, width - 50, header_y - 79)
     
     c.setFont("Helvetica-Bold", 14)
     c.setFillColorRGB(*branding_color)
-    c.drawCentredString(width/2, header_y - 87, "Tax Invoice")
+    c.drawCentredString(width/2, header_y - 99, "Tax Invoice")
     
     # --- Invoice Info ---
     c.setFont("Helvetica-Bold", 10)
     c.setFillColorRGB(0,0,0)
-    c.drawString(50, header_y - 100, "Bill To")
+    c.drawString(50, header_y - 112, "Bill To")
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, header_y - 115, str(transaction.get('name')))
+    c.drawString(50, header_y - 127, str(transaction.get('name')))
     c.setFont("Helvetica", 10)
-    c.drawString(50, header_y - 130, f"Contact No. : {transaction.get('phone')}")
+    c.drawString(50, header_y - 142, f"Contact No. : {transaction.get('phone')}")
     
     c.setFont("Helvetica-Bold", 10)
-    c.drawRightString(width - 50, header_y - 100, "Invoice Details")
+    c.drawRightString(width - 50, header_y - 112, "Invoice Details")
     c.setFont("Helvetica", 9)
-    c.drawRightString(width - 50, header_y - 117, f"Invoice No. : ZH-FY25-26/{transaction.get('transaction_id')[:6]}")
-    c.drawRightString(width - 50, header_y - 132, f"Date : {datetime.utcnow().strftime('%d-%m-%Y')}")
+    c.drawRightString(width - 50, header_y - 129, f"Invoice No. : ZH-FY25-26/{transaction.get('transaction_id')[:6]}")
+    c.drawRightString(width - 50, header_y - 144, f"Date : {datetime.utcnow().strftime('%d-%m-%Y')}")
     
     # --- Table Header ---
-    table_top = header_y - 160
+    table_top = header_y - 172
     c.setFillColorRGB(*branding_color)
     # Widen green box to 555 (width - 90)
     c.rect(50, table_top - 20, width - 90, 20, fill=1, stroke=0)
@@ -300,7 +305,7 @@ def send_whatsapp_invoice(phone: str, invoice_url: str):
         response = requests.post('http://localhost:3001/api/whatsapp/send', json={
             "phone": phone,
             "filePath": absolute_file_path,
-            "message": "Hello, please find your attached invoice from ABC Training Solutions. Thank you!"
+            "message": "Hello, please find your attached invoice from Zeal Healing. Thank you!"
         })
         
         if response.status_code == 200:
