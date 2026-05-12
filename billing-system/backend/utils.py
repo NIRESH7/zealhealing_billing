@@ -64,8 +64,13 @@ def generate_invoice_pdf(transaction: dict):
     width, height = letter
     
     # Draw Logo at top right
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    logo_path = os.path.join(base_dir, "1003648003.png")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    
+    # Try multiple paths for the logo
+    logo_path = os.path.join(parent_dir, "1003648003.png")
+    if not os.path.exists(logo_path):
+        logo_path = os.path.join(current_dir, "1003648003.png")
     
     if os.path.exists(logo_path):
         try:
