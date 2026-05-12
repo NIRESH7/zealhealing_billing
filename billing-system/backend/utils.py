@@ -123,11 +123,18 @@ def generate_invoice_pdf(transaction: dict):
     c.setFont("Helvetica", 10)
     c.drawString(50, header_y - 142, f"Contact No. : {transaction.get('phone')}")
     
+    # Calculate Financial Year (FY)
+    now = datetime.utcnow()
+    if now.month >= 4:
+        fy = f"{now.year % 100}-{(now.year + 1) % 100}"
+    else:
+        fy = f"{(now.year - 1) % 100}-{now.year % 100}"
+        
     c.setFont("Helvetica-Bold", 10)
     c.drawRightString(width - 50, header_y - 112, "Invoice Details")
     c.setFont("Helvetica", 9)
-    c.drawRightString(width - 50, header_y - 129, f"Invoice No. : ZH-FY25-26/{transaction.get('transaction_id')[:6]}")
-    c.drawRightString(width - 50, header_y - 144, f"Date : {datetime.utcnow().strftime('%d-%m-%Y')}")
+    c.drawRightString(width - 50, header_y - 129, f"Invoice No. : ZH{fy}/{transaction.get('transaction_id')[:6]}")
+    c.drawRightString(width - 50, header_y - 144, f"Date : {now.strftime('%d-%m-%Y')}")
     
     # --- Table Header ---
     table_top = header_y - 172
