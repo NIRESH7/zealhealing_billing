@@ -120,8 +120,16 @@ async def get_top_courses(product: Optional[List[str]] = Query(None), name: Opti
     return result
 
 @router.get("/top-customers")
-async def get_top_customers(db=Depends(get_db)):
-    cursor = db.customers.find({}).sort("total_transactions", -1).limit(6)
+async def get_top_customers(name: Optional[List[str]] = Query(None), min_visits: Optional[int] = Query(None), db=Depends(get_db)):
+    query = {}
+    if name:
+        clean_names = [n for n in name if n and n != "All" and n != "Customers"]
+        if clean_names: query["name"] = {"$in": clean_names}
+    
+    if min_visits and min_visits > 0:
+        query["total_transactions"] = {"$gte": min_visits}
+    
+    cursor = db.customers.find(query).sort("total_transactions", -1).limit(6)
     customers = await cursor.to_list(length=6)
     
     result = []
