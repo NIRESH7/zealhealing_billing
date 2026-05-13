@@ -72,9 +72,11 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
     tx_dict["timestamp"] = datetime.utcnow()
     tx_dict["added_by"] = current_user["username"]
     
+    # Normalize and Update Customer
+    normalized_name = tx_dict["name"].strip()
     await db.customers.update_one(
-        {"phone": tx_dict["phone"]},
-        {"$set": {"name": tx_dict["name"]}, "$inc": {"total_spent": tx_dict["amount"], "total_transactions": 1}},
+        {"phone": tx_dict["phone"], "name": {"$regex": f"^{re.escape(normalized_name)}$", "$options": "i"}},
+        {"$set": {"name": normalized_name}, "$inc": {"total_spent": tx_dict["amount"], "total_transactions": 1}},
         upsert=True
     )
     
@@ -344,9 +346,11 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
             result = await db.transactions.insert_many(all_transactions)
             for i, tx in enumerate(all_transactions):
                 tx["_id"] = result.inserted_ids[i]
+                # Normalize and Update Customer
+                normalized_name = tx["name"].strip()
                 await db.customers.update_one(
-                    {"phone": tx["phone"]},
-                    {"$set": {"name": tx["name"]}, "$inc": {"total_spent": tx["amount"], "total_transactions": 1}},
+                    {"phone": tx["phone"], "name": {"$regex": f"^{re.escape(normalized_name)}$", "$options": "i"}},
+                    {"$set": {"name": normalized_name}, "$inc": {"total_spent": tx["amount"], "total_transactions": 1}},
                     upsert=True
                 )
                 invoice_url = generate_invoice_pdf(tx)
