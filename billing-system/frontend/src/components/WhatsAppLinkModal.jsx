@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QrCode, Smartphone, X, CheckCircle2, Loader2, Info } from 'lucide-react';
 import axios from 'axios';
+import { WA_BASE_URL } from '../services/api';
 
 export default function WhatsAppLinkModal({ onClose }) {
   const [status, setStatus] = useState('LOADING');
@@ -11,7 +12,7 @@ export default function WhatsAppLinkModal({ onClose }) {
     let interval;
     const checkStatus = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/whatsapp/qr');
+        const res = await axios.get(`${WA_BASE_URL}/api/whatsapp/qr`);
         setStatus(res.data.status || 'DISCONNECTED');
         if (res.data.qr) {
           setQrCode(res.data.qr);

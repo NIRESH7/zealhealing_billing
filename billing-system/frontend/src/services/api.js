@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+export const BASE_URL = 'http://3.89.148.127:8000';
+export const WA_BASE_URL = 'http://3.89.148.127:3001';
+
 const api = axios.create({
-  baseURL: 'http://3.89.148.127:8000/api',
+  baseURL: `${BASE_URL}/api`,
 });
 
 api.interceptors.request.use((config) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api, { BASE_URL } from '../services/api';
 import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText, Calendar, Package, Check } from 'lucide-react';
 
 // --- Export Analytics Modal ---
@@ -579,7 +579,7 @@ export default function Transactions() {
     setGeneratingId(tx.id);
     try {
       const res = await api.post(`/transactions/${tx.id}/generate-invoice`);
-      setSingleBill({ url: `http://localhost:8000${res.data.url}`, name: tx.name });
+      setSingleBill({ url: `${BASE_URL}${res.data.url}`, name: tx.name });
       setActiveTx(tx);
       fetchTransactions();
     } catch { alert('Failed to generate'); }
@@ -816,7 +816,7 @@ export default function Transactions() {
                                 <button 
                                   onClick={() => {
                                     setActiveTx(tx);
-                                    tx.invoice_url ? setSingleBill({ url: `http://localhost:8000${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
+                                    tx.invoice_url ? setSingleBill({ url: `${BASE_URL}${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
                                   }} 
                                   className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded transition-all ${tx.invoice_url ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
                                   title={tx.invoice_url ? "View Bill" : "Generate Bill"}
