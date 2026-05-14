@@ -26,10 +26,16 @@ async def create_user(user: UserCreate, db=Depends(get_db)):
     created_user = await db.users.find_one({"_id": new_user.inserted_id})
     return created_user
 
+from pydantic import BaseModel
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
 @router.post("/login", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
-    user = await db.users.find_one({"username": form_data.username})
-    if not user or not verify_password(form_data.password, user["hashed_password"]):
+async def login_for_access_token(user_data: UserLogin, db=Depends(get_db)):
+    user = await db.users.find_one({"username": user_data.username})
+    if not user or not verify_password(user_data.password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
