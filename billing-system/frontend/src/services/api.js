@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-export const BASE_URL = 'http://localhost:8000';
-export const WA_BASE_URL = 'http://localhost:3001';
+export const BASE_URL = 'http://3.89.148.127:8000';
+export const WA_BASE_URL = 'http://3.89.148.127:3001';
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
