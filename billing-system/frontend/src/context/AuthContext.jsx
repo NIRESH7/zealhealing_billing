@@ -27,10 +27,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
-    const form = new URLSearchParams();
-    form.append('username', username);
-    form.append('password', password);
-    const { data } = await api.post('/auth/login', form);
+    const payload = { username, password };
+    const { data } = await api.post('/auth/login', payload);
     localStorage.setItem('token', data.access_token);
     setUser({ username, role: data.role });
   };
