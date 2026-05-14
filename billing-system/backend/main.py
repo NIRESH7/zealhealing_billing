@@ -7,16 +7,7 @@ from routers import auth, transactions, dashboard, products
 app = FastAPI(title="Billing System API")
 
 # Configure CORS
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://3.89.148.127:3000",
-    "http://3.89.148.127:5173",
-]
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
