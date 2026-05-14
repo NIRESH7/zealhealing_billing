@@ -7,3 +7,5 @@ venv/
 .wwebjs_auth/
 .wwebjs_cache/
 uploads/
+*.zip
+*.tar.gz
