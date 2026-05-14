@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/
+      - MONGO_DB=zeal_billing_db
+      - WA_SERVICE_URL=http://whatsapp-service:3001
+    depends_on:
+      - mongodb
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  whatsapp-service:
+    build: ./whatsapp-service
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./whatsapp-service/.wwebjs_auth:/app/.wwebjs_auth
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:

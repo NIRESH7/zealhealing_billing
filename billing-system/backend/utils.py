@@ -327,7 +327,8 @@ def send_whatsapp_invoice(phone: str, invoice_url: str):
     absolute_file_path = os.path.join(base_dir, relative_path)
     
     try:
-        response = requests.post('http://localhost:3001/api/whatsapp/send', json={
+        wa_url = os.getenv("WA_SERVICE_URL", "http://localhost:3001")
+        response = requests.post(f'{wa_url}/api/whatsapp/send', json={
             "phone": phone,
             "filePath": absolute_file_path,
             "message": "Hello, please find your attached invoice from Zeal Healing. Thank you!"
