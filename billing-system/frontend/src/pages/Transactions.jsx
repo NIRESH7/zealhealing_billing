@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import api, { BASE_URL } from '../services/api';
-import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText, Calendar, Package, Check } from 'lucide-react';
+import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText, Calendar, Package, Check, Upload, Image, ShieldCheck, ShieldX, FileImage } from 'lucide-react';
 
 // --- Export Analytics Modal ---
 function ExportModal({ onClose }) {
@@ -458,6 +458,158 @@ function EditModal({ tx, onClose, onSave }) {
   );
 }
 
+// --- Payment Proof Cell Component ---
+function PaymentProofCell({ tx, onRefresh }) {
+  const [uploading, setUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const hasProof = !!tx.payment_proof_url;
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.type)) {
+      alert('Please upload an image (JPG, PNG, GIF, WebP) or PDF file.');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be under 10MB.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await api.post(`/transactions/${tx.id}/payment-proof`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      onRefresh();
+    } catch (err) {
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Remove payment proof?')) return;
+    try {
+      await api.delete(`/transactions/${tx.id}/payment-proof`);
+      onRefresh();
+    } catch {
+      alert('Failed to remove proof.');
+    }
+  };
+
+  const proofUrl = tx.payment_proof_url ? `${BASE_URL}${tx.payment_proof_url}` : null;
+  const isPdf = tx.payment_proof_url?.toLowerCase().endsWith('.pdf');
+
+  return (
+    <>
+      <div className="flex items-center justify-center gap-1.5">
+        {hasProof ? (
+          <>
+            <div className="flex items-center gap-1 px-2 py-1 bg-emerald-50 border border-emerald-100 rounded-lg">
+              <ShieldCheck className="w-3 h-3 text-emerald-500" />
+              <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Verified</span>
+            </div>
+            <button
+              onClick={() => setShowPreview(true)}
+              className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all" 
+              title="View Proof"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleDelete}
+              className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+              title="Remove Proof"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg">
+              <ShieldX className="w-3 h-3 text-slate-300" />
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Pending</span>
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-50"
+              title="Upload Payment Proof"
+            >
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            </button>
+          </>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
+          onChange={handleUpload}
+          className="hidden"
+        />
+      </div>
+
+      {/* Preview Modal */}
+      {showPreview && proofUrl && (
+        <div className="fixed inset-0 z-[102] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowPreview(false)}>
+          <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-[28px] border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+            <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-white">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100">
+                  <FileImage className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 tracking-tight">Payment Proof</h3>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">{tx.name} — {tx.payment_proof_filename || 'Uploaded File'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={proofUrl}
+                  download
+                  className="p-2.5 hover:bg-emerald-50 rounded-xl text-emerald-500 transition-all"
+                  title="Download"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+                <button
+                  onClick={handleDelete}
+                  className="p-2.5 hover:bg-rose-50 rounded-xl text-rose-400 transition-all"
+                  title="Delete Proof"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => setShowPreview(false)} className="p-2.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-all">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 flex items-center justify-center bg-slate-50/50 min-h-[300px] max-h-[65vh] overflow-auto">
+              {isPdf ? (
+                <iframe src={proofUrl} className="w-full h-[60vh] border-none rounded-xl" title="Payment Proof PDF" />
+              ) : (
+                <img src={proofUrl} alt="Payment Proof" className="max-w-full max-h-[60vh] rounded-xl shadow-lg border border-slate-200 object-contain" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function Transactions() {
   useOutletContext();
   const navigate = useNavigate();
@@ -763,6 +915,7 @@ export default function Transactions() {
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Paid</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Balance</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Items</th>
+                      <th className="px-4 py-3 text-center text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Payment Proof</th>
                       <th className="px-4 py-3 text-center text-[11px] font-black text-slate-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
@@ -807,6 +960,9 @@ export default function Transactions() {
                           </td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
                             <p className="text-[12px] font-black text-slate-600 truncate max-w-[200px]" title={tx.product}>{tx.product || '-'}</p>
+                          </td>
+                          <td className="px-4 py-2.5 border-r border-slate-100">
+                            <PaymentProofCell tx={tx} onRefresh={fetchTransactions} />
                           </td>
                           <td className="px-4 py-2.5 border-l border-slate-100">
                             <div className="flex items-center justify-center gap-3">

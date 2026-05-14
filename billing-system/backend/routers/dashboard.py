@@ -120,16 +120,57 @@ async def get_top_courses(product: Optional[List[str]] = Query(None), name: Opti
     return result
 
 @router.get("/top-customers")
-async def get_top_customers(name: Optional[List[str]] = Query(None), min_visits: Optional[int] = Query(None), db=Depends(get_db)):
-    query = {}
-    if name:
-        clean_names = [n for n in name if n and n != "All" and n != "Customers"]
-        if clean_names: query["name"] = {"$in": clean_names}
+async def get_top_customers(
+    product: Optional[List[str]] = Query(None),
+    name: Optional[List[str]] = Query(None),
+    year: Optional[str] = None,
+    min_visits: Optional[int] = Query(None),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Get top customers with dynamic filtering by product, name, and year."""
+    query = get_filter_query(product, name, year)
     
-    if min_visits and min_visits > 0:
-        query["total_transactions"] = {"$gte": min_visits}
+    # Aggregate transactions to get counts and revenue per customer within the filtered set.
+    # We normalize the phone by trimming whitespace and use upper-cased name as
+    # a fallback key when the phone is null/empty so that the same real-world
+    # customer is never split across multiple buckets.
+    pipeline = [
+        {"$match": query},
+        # Build a normalised grouping key
+        {"$addFields": {
+            "_norm_phone": {"$trim": {"input": {"$ifNull": ["$phone", ""]}}},
+            "_norm_name": {"$toUpper": {"$trim": {"input": {"$ifNull": ["$name", "Unknown"]}}}}
+        }},
+        {"$addFields": {
+            "_group_key": {
+                "$cond": {
+                    "if": {"$eq": ["$_norm_phone", ""]},
+                    "then": "$_norm_name",   # fallback to name when phone is missing
+                    "else": "$_norm_phone"
+                }
+            }
+        }},
+        {"$group": {
+            "_id": "$_group_key",
+            "name": {"$first": "$name"},
+            "phone": {"$first": "$phone"},
+            "count": {"$sum": 1},
+            "revenue": {"$sum": "$amount"}
+        }}
+    ]
     
-    cursor = db.customers.find(query).sort("total_transactions", -1).limit(6)
+    # Apply exact visit-count filter AFTER grouping
+    if min_visits is not None and min_visits > 0:
+        pipeline.append({"$match": {"count": {"$eq": min_visits}}})
+    
+    # Sort by visit frequency, then revenue
+    pipeline.extend([
+        {"$sort": {"count": -1, "revenue": -1}},
+        {"$limit": 6}
+    ])
+    
+    cursor = db.transactions.aggregate(pipeline)
     customers = await cursor.to_list(length=6)
     
     result = []
@@ -138,8 +179,9 @@ async def get_top_customers(name: Optional[List[str]] = Query(None), min_visits:
         result.append({
             "name": display_name,
             "phone": c.get("phone", "N/A"),
-            "count": c.get("total_transactions", 0),
-            "revenue": c.get("total_spent", 0),
+            "count": c.get("count", 0),
+            "revenue": c.get("revenue", 0),
             "initials": "".join([n[0] for n in display_name.split()[:2]]).upper() if display_name else "UU"
         })
     return result
+

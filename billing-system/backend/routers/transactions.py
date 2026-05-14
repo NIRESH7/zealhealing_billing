@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import re
 import uuid
 import random
@@ -24,7 +25,9 @@ import traceback
 router = APIRouter()
 
 UPLOAD_DIR = "uploads"
+PAYMENT_PROOF_DIR = os.path.join(UPLOAD_DIR, "payment_proofs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(PAYMENT_PROOF_DIR, exist_ok=True)
 
 @router.post("/manual")
 async def create_transaction_manual(transaction: TransactionCreate, db=Depends(get_db), current_user=Depends(get_current_user)):
@@ -456,6 +459,68 @@ async def create_invoice(tx_id: str, db=Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/{tx_id}/payment-proof")
+async def upload_payment_proof(tx_id: str, file: UploadFile = File(...), db=Depends(get_db), current_user=Depends(get_current_user)):
+    """Upload an image or PDF as payment proof for a transaction."""
+    tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Validate file type
+    allowed_types = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"]
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"File type '{ext}' not allowed. Use: {', '.join(allowed_types)}")
+    
+    # Delete old proof file if exists
+    old_proof = tx.get("payment_proof_url")
+    if old_proof:
+        old_path = os.path.join(os.getcwd(), old_proof.lstrip("/"))
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    
+    # Save file with unique name
+    safe_filename = f"{tx_id}_{uuid.uuid4().hex[:8]}{ext}"
+    file_path = os.path.join(PAYMENT_PROOF_DIR, safe_filename)
+    
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+    
+    # Store relative URL path
+    proof_url = f"/uploads/payment_proofs/{safe_filename}"
+    
+    await db.transactions.update_one(
+        {"_id": ObjectId(tx_id)},
+        {"$set": {
+            "payment_proof_url": proof_url,
+            "payment_proof_filename": file.filename,
+            "payment_proof_uploaded_at": datetime.utcnow()
+        }}
+    )
+    
+    return {"message": "Payment proof uploaded", "url": proof_url, "filename": file.filename}
+
+@router.delete("/{tx_id}/payment-proof")
+async def delete_payment_proof(tx_id: str, db=Depends(get_db), current_user=Depends(get_current_user)):
+    """Delete payment proof for a transaction."""
+    tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    proof_url = tx.get("payment_proof_url")
+    if proof_url:
+        file_path = os.path.join(os.getcwd(), proof_url.lstrip("/"))
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    
+    await db.transactions.update_one(
+        {"_id": ObjectId(tx_id)},
+        {"$unset": {"payment_proof_url": "", "payment_proof_filename": "", "payment_proof_uploaded_at": ""}}
+    )
+    
+    return {"message": "Payment proof removed"}
+
 @router.post("/{tx_id}/send-whatsapp")
 async def send_whatsapp(tx_id: str, db=Depends(get_db)):
     tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
@@ -622,14 +687,14 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     currency_font = Font(name="Calibri", size=10, bold=True)
     
     # Title row
-    ws.merge_cells("A1:J1")
+    ws.merge_cells("A1:M1")
     title_cell = ws["A1"]
     title_cell.value = "ZEAL HEALING — Analytics Report"
     title_cell.font = Font(name="Calibri", bold=True, size=14, color="10b981")
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
     
     # Filter info row
-    ws.merge_cells("A2:J2")
+    ws.merge_cells("A2:M2")
     filter_parts = []
     if start_date:
         filter_parts.append(f"From: {start_date}")
@@ -644,13 +709,13 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     ws["A2"].alignment = Alignment(horizontal="center")
     
     # Generated date
-    ws.merge_cells("A3:J3")
+    ws.merge_cells("A3:M3")
     ws["A3"].value = f"Generated: {datetime.now().strftime('%d/%m/%Y %I:%M %p')}"
     ws["A3"].font = Font(name="Calibri", size=9, italic=True, color="94a3b8")
     ws["A3"].alignment = Alignment(horizontal="center")
     
     # Headers at row 5
-    headers = ["#", "Date", "Customer", "Phone", "Transaction ID", "Items/Product", "Subtotal (₹)", "GST (₹)", "Total (₹)", "Paid (₹)", "Balance (₹)", "Status"]
+    headers = ["#", "Date", "Customer", "Phone", "Transaction ID", "Items/Product", "Subtotal (₹)", "GST (₹)", "Total (₹)", "Paid (₹)", "Balance (₹)", "Status", "Payment Proof"]
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col_idx, value=header)
         cell.font = header_font
@@ -684,9 +749,15 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
         ws.cell(row=row_idx, column=11, value=round(balance, 2)).font = currency_font
         ws.cell(row=row_idx, column=12, value=tx.get("status", "-")).font = data_font
         
-        for c in range(1, 13):
+        # Payment Proof column — show "Verified" if proof uploaded, else "Not Verified"
+        proof_status = "Verified" if tx.get("payment_proof_url") else "Not Verified"
+        proof_cell = ws.cell(row=row_idx, column=13, value=proof_status)
+        proof_cell.font = Font(name="Calibri", size=10, bold=True, color="10b981" if proof_status == "Verified" else "ef4444")
+        
+        for c in range(1, 14):
             ws.cell(row=row_idx, column=c).border = thin_border
             ws.cell(row=row_idx, column=c).alignment = Alignment(horizontal="center", vertical="center")
+
         
         total_revenue += total_amt
         total_gst_sum += gst
@@ -698,6 +769,8 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     summary_font = Font(name="Calibri", bold=True, size=11, color="10b981")
     
     ws.merge_cells(start_row=summary_row, start_column=1, end_row=summary_row, end_column=6)
+    total_verified_proofs = sum(1 for tx in transactions if tx.get("payment_proof_url"))
+    total_not_verified_proofs = len(transactions) - total_verified_proofs
     ws.cell(row=summary_row, column=1, value="TOTALS").font = summary_font
     ws.cell(row=summary_row, column=1).alignment = Alignment(horizontal="right")
     ws.cell(row=summary_row, column=7, value=round(total_revenue - total_gst_sum, 2)).font = summary_font
@@ -705,28 +778,16 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     ws.cell(row=summary_row, column=9, value=round(total_revenue, 2)).font = summary_font
     ws.cell(row=summary_row, column=10, value=round(total_paid, 2)).font = summary_font
     ws.cell(row=summary_row, column=11, value=round(total_revenue - total_paid, 2)).font = summary_font
+    ws.cell(row=summary_row, column=13, value=f"{total_verified_proofs} Verified / {total_not_verified_proofs} Pending").font = summary_font
     
-    for c in range(1, 13):
+    for c in range(1, 14):
         ws.cell(row=summary_row, column=c).fill = summary_fill
         ws.cell(row=summary_row, column=c).border = thin_border
     
     # Column widths
-    col_widths = [6, 12, 20, 15, 22, 30, 14, 12, 14, 14, 14, 12]
-    for i, w in enumerate(col_widths, 1):
-        ws.column_dimensions[chr(64 + i) if i <= 26 else ""].width = w
-    # Fix column L
-    ws.column_dimensions["A"].width = col_widths[0]
-    ws.column_dimensions["B"].width = col_widths[1]
-    ws.column_dimensions["C"].width = col_widths[2]
-    ws.column_dimensions["D"].width = col_widths[3]
-    ws.column_dimensions["E"].width = col_widths[4]
-    ws.column_dimensions["F"].width = col_widths[5]
-    ws.column_dimensions["G"].width = col_widths[6]
-    ws.column_dimensions["H"].width = col_widths[7]
-    ws.column_dimensions["I"].width = col_widths[8]
-    ws.column_dimensions["J"].width = col_widths[9]
-    ws.column_dimensions["K"].width = col_widths[10]
-    ws.column_dimensions["L"].width = col_widths[11]
+    col_widths = {"A": 6, "B": 12, "C": 20, "D": 15, "E": 22, "F": 30, "G": 14, "H": 12, "I": 14, "J": 14, "K": 14, "L": 12, "M": 16}
+    for col_letter, w in col_widths.items():
+        ws.column_dimensions[col_letter].width = w
     
     # Save to buffer
     buffer = io.BytesIO()
