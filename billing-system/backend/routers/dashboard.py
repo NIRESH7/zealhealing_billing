@@ -10,7 +10,7 @@ def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], 
     query = {"status": "Verified"}
     if products:
         clean_products = [p for p in products if p and p != "All" and p != "Products"]
-        if clean_products: query["product"] = {"$in": clean_products}
+        if clean_products: query["invoice_items.name"] = {"$in": clean_products}
     if names:
         clean_names = [n for n in names if n and n != "All" and n != "Customers"]
         if clean_names: query["name"] = {"$in": clean_names}
@@ -25,7 +25,7 @@ def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], 
 
 @router.get("/filters")
 async def get_dashboard_filters(db=Depends(get_db)):
-    products = await db.transactions.distinct("product", {"status": "Verified"})
+    products = await db.transactions.distinct("invoice_items.name", {"status": "Verified"})
     products = sorted([p for p in products if p])
     customers_cursor = db.customers.find({}, {"name": 1}).sort("name", 1)
     customers = await customers_cursor.to_list(length=1000)
@@ -49,11 +49,29 @@ async def get_dashboard_filters(db=Depends(get_db)):
 @router.get("/stats")
 async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
     query = get_filter_query(product, name, year)
-    pipeline = [{"$match": query}, {"$group": {"_id": None, "total_revenue": {"$sum": "$amount"}, "count": {"$sum": 1}}}]
+    pipeline = [
+        {"$match": query}, 
+        {"$group": {
+            "_id": None, 
+            "total_revenue": {"$sum": "$total_amount"}, 
+            "total_collected": {"$sum": "$paid_amount"},
+            "total_balance": {"$sum": "$balance"},
+            "count": {"$sum": 1}
+        }}
+    ]
     result_cursor = db.transactions.aggregate(pipeline)
     result = await result_cursor.to_list(length=1)
-    stats = result[0] if result else {"total_revenue": 0, "count": 0}
-    return {"total_revenue": stats["total_revenue"], "total_transactions": stats["count"], "pending_sync": await db.transactions.count_documents({"status": "Pending"}), "system_health": 99.9, "verified_transactions": stats["count"], "active_licenses": stats["count"] // 5 + 10}
+    stats = result[0] if result else {"total_revenue": 0, "total_collected": 0, "total_balance": 0, "count": 0}
+    return {
+        "total_revenue": stats["total_revenue"], 
+        "total_collected": stats["total_collected"],
+        "total_balance": stats["total_balance"],
+        "total_transactions": stats["count"], 
+        "pending_sync": await db.transactions.count_documents({"status": "Pending"}), 
+        "system_health": 99.9, 
+        "verified_transactions": stats["count"], 
+        "active_licenses": stats["count"] // 5 + 10
+    }
 
 @router.get("/history")
 async def get_dashboard_history(
@@ -84,18 +102,28 @@ async def get_dashboard_history(
     # Group by PRODUCT as requested by the user
     pipeline = [
         {"$match": query},
+        {"$unwind": "$invoice_items"},
+    ]
+    
+    # If filtering by specific products, ensure we only aggregate those after unwinding
+    if product:
+        clean_products = [p for p in product if p and p != "All"]
+        if clean_products:
+            pipeline.append({"$match": {"invoice_items.name": {"$in": clean_products}}})
+
+    pipeline.extend([
         {"$group": {
-            "_id": "$product",
-            "value": {"$sum": "$amount"}
+            "_id": "$invoice_items.name",
+            "value": {"$sum": "$invoice_items.total"}
         }},
         {"$sort": {"value": -1}}, # Show highest earners first
         {"$limit": 8} # Keep it neat
-    ]
+    ])
     
     cursor = db.transactions.aggregate(pipeline)
     results = await cursor.to_list(length=8)
     
-    return [{"day": str(r["_id"] or "Unknown"), "value": r["value"]} for r in results]
+    return [{"day": str(r["_id"] or "Unknown").title(), "value": r["value"]} for r in results]
 
 @router.get("/activity")
 async def get_dashboard_activity(db=Depends(get_db), current_user=Depends(get_current_user)):
@@ -109,14 +137,38 @@ async def get_dashboard_activity(db=Depends(get_db), current_user=Depends(get_cu
 @router.get("/top-courses")
 async def get_top_courses(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
     query = get_filter_query(product, name, year)
-    pipeline = [{"$match": query}, {"$group": {"_id": "$product", "revenue": {"$sum": "$amount"}, "count": {"$sum": 1}}}, {"$sort": {"revenue": -1}}, {"$limit": 6}]
+    pipeline = [
+        {"$match": query},
+        {"$unwind": "$invoice_items"},
+    ]
+    
+    # If filtering by specific products, ensure we only aggregate those after unwinding
+    if product:
+        clean_products = [p for p in product if p and p != "All"]
+        if clean_products:
+            pipeline.append({"$match": {"invoice_items.name": {"$in": clean_products}}})
+
+    pipeline.extend([
+        {"$group": {
+            "_id": "$invoice_items.name", 
+            "revenue": {"$sum": "$invoice_items.total"}, 
+            "count": {"$sum": "$invoice_items.qty"}
+        }}, 
+        {"$sort": {"revenue": -1}}, 
+        {"$limit": 6}
+    ])
     cursor = db.transactions.aggregate(pipeline)
     courses = await cursor.to_list(length=6)
     result = []
     for course in courses:
         raw_name = course.get("_id") or "Unknown"
-        display_name = str(raw_name).strip()
-        result.append({"name": display_name if display_name else "Generic", "revenue": course.get("revenue", 0), "count": course.get("count", 0), "initials": "".join([n[0] for n in display_name.split()[:2]]).upper() if display_name else "XX"})
+        display_name = str(raw_name).strip().title()
+        result.append({
+            "name": display_name if display_name else "Generic", 
+            "revenue": course.get("revenue", 0), 
+            "count": int(course.get("count", 0)), 
+            "initials": "".join([n[0] for n in display_name.split()[:2]]).upper() if display_name else "XX"
+        })
     return result
 
 @router.get("/top-customers")
@@ -156,7 +208,7 @@ async def get_top_customers(
             "name": {"$first": "$name"},
             "phone": {"$first": "$phone"},
             "count": {"$sum": 1},
-            "revenue": {"$sum": "$amount"}
+            "revenue": {"$sum": "$total_amount"}
         }}
     ]
     

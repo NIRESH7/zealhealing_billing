@@ -154,9 +154,9 @@ export default function Dashboard() {
 
   const kpiCards = [
     { label: 'Revenue', value: `₹${stats?.total_revenue?.toLocaleString() || '0'}`, icon: TrendingUp, color: 'text-emerald-600' },
-    { label: 'Bills', value: stats?.verified_transactions || '0', icon: CheckCircle, color: 'text-slate-900' },
-    { label: 'Pending', value: stats?.pending_sync || '0', icon: RefreshCw, color: 'text-amber-500' },
-    { label: 'System', value: stats?.active_licenses || '0', icon: Activity, color: 'text-emerald-500' },
+    { label: 'Collected', value: `₹${stats?.total_collected?.toLocaleString() || '0'}`, icon: CheckCircle, color: 'text-emerald-600' },
+    { label: 'Balance', value: `₹${stats?.total_balance?.toLocaleString() || '0'}`, icon: Activity, color: 'text-emerald-600' },
+    { label: 'Total Bills', value: stats?.verified_transactions || '0', icon: Layout, color: 'text-emerald-600' },
   ];
 
   if (loading) return (
@@ -249,7 +249,7 @@ export default function Dashboard() {
                   {history.map((entry, index) => (
                     <Cell
                       key={index}
-                      fill={index === 0 ? '#10b981' : '#f1f5f9'}
+                      fill="#10b981"
                       className="hover:opacity-80 cursor-pointer"
                     />
                   ))}
@@ -266,12 +266,12 @@ export default function Dashboard() {
             {topCourses.map((course, i) => (
               <div key={i} className="flex items-center justify-between group">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-emerald-50 flex items-center justify-center text-[10px] font-black text-emerald-600 border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  <div className="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center text-[10px] font-black text-white border border-emerald-500 shadow-sm transition-all">
                     {course.initials}
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[12px] font-bold text-slate-700 tracking-tight leading-tight">{course.name}</span>
-                    <span className="text-[10px] font-bold text-slate-400">{course.count} bills</span>
+                    <span className="text-[10px] font-bold text-slate-400">{course.count} sold</span>
                   </div>
                 </div>
                 <span className="text-xs font-black text-slate-900 italic">₹{course.revenue.toLocaleString()}</span>
@@ -299,7 +299,7 @@ export default function Dashboard() {
             {topCustomers.map((customer, i) => (
               <div key={i} className="flex items-center justify-between group">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-emerald-50 flex items-center justify-center text-[10px] font-black text-emerald-600 border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  <div className="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center text-[10px] font-black text-white border border-emerald-500 shadow-sm transition-all">
                     {customer.initials}
                   </div>
                   <div className="flex flex-col">

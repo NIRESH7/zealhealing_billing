@@ -245,7 +245,7 @@ function CreateModal({ onClose, onSave }) {
   const [formData, setFormData] = useState({
     name: '', phone: '', transaction_id: '', amount: 0, product: '', 
     region: 'India', date: new Date().toLocaleDateString('en-GB'),
-    gst_rate: 0, cgst: 0, sgst: 0, total_amount: 0, hsn_code: ''
+    gst_rate: 0, cgst: 0, sgst: 0, total_amount: 0, paid_amount: 0, hsn_code: ''
   });
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
@@ -271,6 +271,7 @@ function CreateModal({ onClose, onSave }) {
       cgst: gstAmt / 2,
       sgst: gstAmt / 2,
       total_amount: price + gstAmt,
+      paid_amount: price + gstAmt,
       hsn_code: p.hsn_code || ''
     });
     setSearch(p.name);
@@ -291,7 +292,8 @@ function CreateModal({ onClose, onSave }) {
         gst_rate: gstRate,
         cgst: gstAmt / 2,
         sgst: gstAmt / 2,
-        total_amount: price + gstAmt
+        total_amount: price + gstAmt,
+        paid_amount: price + gstAmt
       }));
     } else {
       setFormData(prev => ({ ...prev, region }));
@@ -377,6 +379,10 @@ function CreateModal({ onClose, onSave }) {
                   <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">GPay/Ref ID</label>
                   <input required type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id:e.target.value})} className="w-full px-5 py-3.5 text-[13px] font-black text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-600/10 outline-none placeholder:uppercase" placeholder="TXN123456" />
                </div>
+               <div>
+                  <label className="text-[11px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Paid Amount (₹)</label>
+                  <input required type="number" value={formData.paid_amount} onChange={e => setFormData({...formData, paid_amount: Number(e.target.value)})} className="w-full px-5 py-3.5 text-[13px] font-black text-slate-900 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-600/10 outline-none" placeholder="Amount Paid" />
+               </div>
                <div className="bg-emerald-600/5 p-6 rounded-[24px] border border-emerald-100/50 text-emerald-600">
                   <div className="flex justify-between items-center mb-2">
                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Total</span>
@@ -443,6 +449,10 @@ function EditModal({ tx, onClose, onSave }) {
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Total Amount (₹)</label>
               <input type="number" value={formData.total_amount} onChange={e => setFormData({...formData, total_amount: Number(e.target.value)})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Paid Amount (₹)</label>
+              <input type="number" value={formData.paid_amount} onChange={e => setFormData({...formData, paid_amount: Number(e.target.value)})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
             </div>
           </div>
 
@@ -947,15 +957,16 @@ export default function Transactions() {
                           </td>
                           <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">₹{Number(tx.total_amount || 0).toLocaleString('en-IN')}</td>
                           <td className="px-4 py-2.5 text-[12px] font-black text-emerald-600 border-r border-slate-100">
-                            {(tx.paid_amount !== undefined && tx.paid_amount !== null) ? `₹${Number(tx.paid_amount).toLocaleString('en-IN')}` : 'null'}
+                            ₹{Number(tx.paid_amount || 0).toLocaleString('en-IN')}
                           </td>
                           <td className="px-4 py-2.5 text-[12px] font-black border-r border-slate-100">
                             {(tx.balance !== undefined && tx.balance !== null) ? (
-                              <span className={tx.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}>
-                                ₹{Number(tx.balance).toLocaleString('en-IN')}
+                              <span className={tx.balance > 0 ? 'text-rose-500' : tx.balance < 0 ? 'text-blue-500' : 'text-slate-400'}>
+                                {tx.balance > 0 ? 'Due: ' : tx.balance < 0 ? 'Extra: ' : ''}
+                                ₹{Math.abs(Number(tx.balance)).toLocaleString('en-IN')}
                               </span>
                             ) : (
-                              <span className="text-slate-300">null</span>
+                              <span className="text-slate-300">₹0</span>
                             )}
                           </td>
                           <td className="px-4 py-2.5 border-r border-slate-100">

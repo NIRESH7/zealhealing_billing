@@ -40,6 +40,8 @@ class TransactionCreate(BaseModel):
     cgst: float = 0
     sgst: float = 0
     total_amount: float = 0
+    paid_amount: Optional[float] = None
+    balance: Optional[float] = None
 
 class TransactionDB(TransactionCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
@@ -48,10 +50,10 @@ class TransactionDB(TransactionCreate):
     invoice_url: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     is_duplicate: bool = False
-    gst_rate: float = 0
-    cgst: float = 0
-    sgst: float = 0
-    total_amount: float = 0
+    payment_proof_url: Optional[str] = None
+    payment_proof_filename: Optional[str] = None
+    payment_proof_uploaded_at: Optional[datetime] = None
+
 
 class CustomerDB(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)

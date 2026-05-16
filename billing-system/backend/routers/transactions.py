@@ -70,6 +70,15 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
         tx_dict["amount"] = float(item_subtotal)
         tx_dict["gst_total"] = float(gst_amount)
         tx_dict["total_amount"] = float(item_total)
+
+    # Calculate balance if paid_amount is present
+    if tx_dict.get("paid_amount") is not None:
+        tx_dict["balance"] = float(Decimal(str(tx_dict["total_amount"])) - Decimal(str(tx_dict["paid_amount"])))
+    elif tx_dict.get("total_amount") is not None:
+        # Default behavior: if not specified, assume unpaid or ask user? 
+        # For manual entry, let's keep it None if not provided, or default to 0 balance if paid_amount = total_amount.
+        # The USER screenshot shows some with null balance.
+        pass
     
     tx_dict["status"] = "Pending"
     tx_dict["timestamp"] = datetime.utcnow()
@@ -316,8 +325,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                             paid_val_dec = Decimal(clean_amt_str).quantize(Decimal("0.01"))
                             paid_val = float(paid_val_dec)
                             bal = float(grand_total - paid_val_dec)
-                            # Only show positive balance (pending amount); negative means overpaid/tax-included
-                            balance = bal if bal > 0 else None
+                            balance = bal
                     except Exception:
                         pass
 
@@ -408,8 +416,18 @@ async def delete_transaction(tx_id: str, db=Depends(get_db), current_user=Depend
 @router.put("/{tx_id}")
 async def update_transaction(tx_id: str, payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
     # Update transaction details
-    # Note: This is a simple update, we don't recalculate GST here to allow manual overrides if needed
     update_data = {k: v for k, v in payload.items() if k not in ["_id", "id", "added_by", "timestamp"]}
+    
+    # Recalculate balance if total_amount or paid_amount is updated
+    if "total_amount" in update_data or "paid_amount" in update_data:
+        # Get existing tx to have current values for calculation
+        tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+        if tx:
+            total = update_data.get("total_amount", tx.get("total_amount", 0))
+            paid = update_data.get("paid_amount", tx.get("paid_amount"))
+            if paid is not None:
+                update_data["balance"] = float(Decimal(str(total)) - Decimal(str(paid)))
+
     result = await db.transactions.update_one({"_id": ObjectId(tx_id)}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Transaction not found")

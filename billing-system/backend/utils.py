@@ -68,21 +68,29 @@ def generate_invoice_pdf(transaction: dict):
     
     # Draw Logo at top right
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(current_dir)
     
     # Identify the base directory for assets (logo, signature)
-    # Check both current and parent to support local/Docker paths
-    base_dir = parent_dir if os.path.exists(os.path.join(parent_dir, "1003648003.png")) else current_dir
-    logo_path = os.path.join(base_dir, "1003648003.png")
+    # Check current directory (backend) first, then fallback to parent (root)
+    logo_filename = "1003648003.png"
+    signature_filename = "signature.jpg"
+    
+    logo_path = os.path.join(current_dir, logo_filename)
+    if not os.path.exists(logo_path):
+        logo_path = os.path.join(os.path.dirname(current_dir), logo_filename)
+    
+    signature_path = os.path.join(current_dir, signature_filename)
+    if not os.path.exists(signature_path):
+        signature_path = os.path.join(os.path.dirname(current_dir), signature_filename)
     
     if os.path.exists(logo_path):
         try:
             # Draw white background rectangle to avoid black backgrounds on transparent PNGs
             c.setFillColorRGB(1, 1, 1)
-            c.rect(width - 145, height - 105, 110, 90, fill=1, stroke=0)
+            # Slightly larger box for the logo background
+            c.rect(width - 150, height - 110, 120, 100, fill=1, stroke=0)
             
             # Position logo at top right
-            c.drawImage(logo_path, width - 140, height - 100, width=100, height=80, preserveAspectRatio=True, mask='auto')
+            c.drawImage(logo_path, width - 145, height - 105, width=110, height=90, preserveAspectRatio=True, mask='auto')
         except Exception as e:
             print(f"Error drawing logo: {e}")
     
@@ -295,7 +303,6 @@ def generate_invoice_pdf(transaction: dict):
     sign_y = 100
     
     # Draw Signature Image (Top)
-    signature_path = os.path.join(base_dir, "signature.jpg")
     if os.path.exists(signature_path):
         try:
             c.drawImage(signature_path, width - 170, sign_y + 35, width=100, height=45, preserveAspectRatio=True, mask='auto')
