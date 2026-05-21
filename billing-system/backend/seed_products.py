@@ -148,6 +148,9 @@ products = [
     {"name": "brahma mugurtha", "category": "Healing", "price_india": 999, "price_abroad": 999, "gst_rate": 5, "hsn_code": "9993", "is_service": True},
     {"name": "fullmoonday", "category": "Healing", "price_india": 111, "price_abroad": 111, "gst_rate": 5, "hsn_code": "9993", "is_service": True},
     {"name": "personal healing 6 sessions", "category": "Healing", "price_india": 6000, "price_abroad": 6000, "gst_rate": 5, "hsn_code": "9993", "is_service": True},
+    {"name": "Aura Cleansing Spray", "category": "Others", "price_india": 1500, "price_abroad": 1500, "gst_rate": 18, "hsn_code": "3307", "is_service": False},
+    {"name": "Aura Cleanser", "category": "Others", "price_india": 1500, "price_abroad": 1500, "gst_rate": 18, "hsn_code": "3307", "is_service": False},
+    {"name": "Brown Gown", "category": "Others", "price_india": 1500, "price_abroad": 1500, "gst_rate": 18, "hsn_code": "9983", "is_service": False},
 ]
 
 async def main():

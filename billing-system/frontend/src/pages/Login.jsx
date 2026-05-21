@@ -111,7 +111,7 @@ export default function Login() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="Type username here"
-                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
+                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all"
                      />
                   </div>
                </div>
@@ -131,7 +131,7 @@ export default function Login() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••••••"
-                        className="w-full pl-12 pr-14 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
+                        className="w-full pl-12 pr-14 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all"
                      />
                      <button
                         type="button"
@@ -159,7 +159,7 @@ export default function Login() {
                            value={confirmPassword}
                            onChange={(e) => setConfirmPassword(e.target.value)}
                            placeholder="••••••••••••"
-                           className="w-full pl-12 pr-14 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all font-mono"
+                           className="w-full pl-12 pr-14 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[14px] font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500/40 focus:ring-[6px] focus:ring-emerald-500/5 transition-all"
                         />
                      </div>
                   </div>

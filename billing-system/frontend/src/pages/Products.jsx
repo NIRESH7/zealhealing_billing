@@ -276,6 +276,9 @@ export default function Products() {
                     <option value="Medicine">Medicine</option>
                     <option value="Classes">Classes</option>
                     <option value="Healing">Healing</option>
+                    <option value="Cards">Cards</option>
+                    <option value="Rituals">Rituals</option>
+                    <option value="Others">Others</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">

@@ -152,7 +152,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 "shipping": find_idx(["shipping", "delivery"], -1)
             }
 
-            is_new_format = col_map["location"] != -1 and "items" in header_vals
+            is_new_format = col_map["location"] != -1 and col_map["items"] != -1
             
             # Detect start_idx (Skip headers)
             start_idx = 1
@@ -203,7 +203,11 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 shipping = 0
                 
                 if is_new_format:
-                    location = str(row[col_map["location"]].value or "India").strip().capitalize()
+                    loc_raw = str(row[col_map["location"]].value or "India").strip().lower()
+                    if loc_raw in ["india", "indina", "ind", "in"]:
+                        location = "India"
+                    else:
+                        location = "Abroad"
                     items_str = str(row[col_map["items"]].value or "").strip()
                     shipping = float(row[col_map["shipping"]].value or 0) if col_map["shipping"] != -1 else 0
                 else:
@@ -247,7 +251,83 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                         product = await db.products.find_one({"name": {"$regex": re.escape(clean_item_name), "$options": "i"}})
                     
                     if not product:
-                        raise HTTPException(status_code=400, detail=f"Product '{item_name}' not found. Please ensure it exists in the Products database.")
+                        # Auto-create product to allow seamless excel upload
+                        # Determine category based on product name keywords
+                        cat = "Others"
+                        lower_name = clean_item_name.lower()
+                        if any(x in lower_name for x in ["reiki", "class", "course", "level", "learn"]):
+                            cat = "Classes"
+                        elif any(x in lower_name for x in ["tarot", "reading", "voice", "video", "appointment", "consult", "app", "pesi"]):
+                            cat = "Tarot"
+                        elif any(x in lower_name for x in ["healing", "session", "brahma", "fullmoon", "ammavasai"]):
+                            cat = "Healing"
+                        elif any(x in lower_name for x in ["medicine", "bach", "flower", "ml"]):
+                            cat = "Medicine"
+                        elif any(x in lower_name for x in ["bracelet", "pyramid", "stone", "crystal", "wand", "ball", "pendant", "malai", "tree", "hanging", "plate", "selenite", "pyrite", "quartz", "amethyst", "tourmaline", "aventurine", "citrine", "tiger", "carnelian", "lapis", "howlite"]):
+                            cat = "Crystals"
+                        elif "card" in lower_name:
+                            cat = "Cards"
+                        elif any(x in lower_name for x in ["knot", "ritual"]):
+                            cat = "Rituals"
+
+                        # Determine default GST rate based on category
+                        g_rate = 18.0
+                        if cat == "Crystals":
+                            g_rate = 0.25
+                        elif cat == "Medicine":
+                            g_rate = 12.0
+                        elif cat in ["Classes", "Healing"]:
+                            g_rate = 5.0
+
+                        # Determine HSN code based on category
+                        h_code = "9983"
+                        if cat == "Crystals":
+                            h_code = "7117"
+                        elif cat == "Medicine":
+                            h_code = "3004"
+                        elif cat == "Classes":
+                            h_code = "9992"
+                        elif cat == "Healing":
+                            h_code = "9993"
+                        elif cat == "Tarot":
+                            h_code = "9983"
+                        elif cat == "Cards":
+                            h_code = "4901"
+
+                        is_serv = cat in ["Tarot", "Classes", "Healing", "Rituals"]
+
+                        # Calculate default base price based on excel row amount if available
+                        price_in = 0.0
+                        price_ab = 0.0
+                        if raw_excel_amount is not None:
+                            try:
+                                amt_clean = re.sub(r'[^\d.]', '', str(raw_excel_amount))
+                                if amt_clean:
+                                    amt_dec = Decimal(amt_clean)
+                                    items_count = Decimal(str(len(parsed_items)))
+                                    unit_total = amt_dec / (items_count * qty)
+                                    
+                                    tax_mult = Decimal("1") + Decimal(str(g_rate)) / Decimal("100")
+                                    price_in = float((unit_total / tax_mult).quantize(Decimal("0.01")))
+                                    price_ab = float(unit_total.quantize(Decimal("0.01")))
+                            except Exception:
+                                pass
+
+                        new_product = {
+                            "name": clean_item_name,
+                            "category": cat,
+                            "price_india": price_in,
+                            "price_abroad": price_ab,
+                            "gst_rate": g_rate,
+                            "hsn_code": h_code,
+                            "is_service": is_serv
+                        }
+                        
+                        insert_res = await db.products.insert_one(new_product)
+                        new_product["_id"] = insert_res.inserted_id
+                        product = new_product
+                        # Keep cached list updated
+                        all_product_names.append(clean_item_name)
                     
                     price = Decimal(str(product["price_india"] if location == "India" else product["price_abroad"]))
                     gst_rate = Decimal(str(product["gst_rate"] if location == "India" else 0))
