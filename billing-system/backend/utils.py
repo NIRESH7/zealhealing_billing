@@ -345,7 +345,12 @@ def send_whatsapp_invoice(phone: str, invoice_url: str):
              return {"status": "success", "message": "Invoice sent via WhatsApp"}
         else:
              print(f"WhatsApp API Error: {response.text}")
-             return {"status": "error", "message": "Failed to send via Node.js service"}
+             try:
+                 err_json = response.json()
+                 err_msg = err_json.get("error", "Failed to send via Node.js service")
+             except Exception:
+                 err_msg = response.text or "Failed to send via Node.js service"
+             return {"status": "error", "message": err_msg}
              
     except Exception as e:
         print(f"WhatsApp Service Connection Error: {e}")

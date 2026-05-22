@@ -12,14 +12,17 @@ let qrData = null;
 let clientStatus = 'DISCONNECTED'; 
 
 const client = new Client({
+    authTimeoutMs: 1200000,
     authStrategy: new LocalAuth(),
     webVersionCache: {
         type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
+        strict: false
     },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     puppeteer: {
         headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -59,15 +62,36 @@ client.on('auth_failure', msg => {
 client.on('disconnected', (reason) => {
     console.log('Client was logged out', reason);
     clientStatus = 'DISCONNECTED';
-    client.initialize(); 
+    client.initialize().catch(err => console.error('Re-initialization error on disconnect:', err)); 
 });
 
 console.log('Initializing WhatsApp Client...');
-client.initialize();
+client.initialize().catch(err => {
+    console.error('Initial client initialization error:', err);
+});
 
 // Routes
 app.get('/api/whatsapp/status', (req, res) => {
     res.json({ status: clientStatus });
+});
+
+app.post('/api/whatsapp/disconnect', async (req, res) => {
+    try {
+        console.log('Disconnecting/Logging out WhatsApp client...');
+        await client.logout();
+        res.json({ success: true, message: 'Disconnected successfully' });
+    } catch (error) {
+        console.error('Disconnect error, forcing client re-initialization:', error);
+        try {
+            await client.destroy();
+        } catch (destroyErr) {
+            console.error('Destroy error:', destroyErr);
+        }
+        clientStatus = 'DISCONNECTED';
+        qrData = null;
+        client.initialize().catch(err => console.error('Re-initialization error during disconnect:', err));
+        res.json({ success: true, message: 'Disconnected and re-initialized' });
+    }
 });
 
 app.get('/api/whatsapp/qr', (req, res) => {

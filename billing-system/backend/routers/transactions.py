@@ -495,22 +495,130 @@ async def delete_transaction(tx_id: str, db=Depends(get_db), current_user=Depend
 
 @router.put("/{tx_id}")
 async def update_transaction(tx_id: str, payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
-    # Update transaction details
-    update_data = {k: v for k, v in payload.items() if k not in ["_id", "id", "added_by", "timestamp"]}
+    # Find existing transaction
+    tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+        
+    old_phone = tx.get("phone")
+    old_name = tx.get("name", "").strip()
+    old_amount = tx.get("amount", 0)
+    old_invoice_url = tx.get("invoice_url")
+    
+    # Update transaction details, excluding read-only metadata fields
+    exclude_fields = ["_id", "id", "added_by", "timestamp", "invoice_url", "payment_proof_url", "payment_proof_filename", "payment_proof_uploaded_at"]
+    update_data = {k: v for k, v in payload.items() if k not in exclude_fields}
     
     # Recalculate balance if total_amount or paid_amount is updated
     if "total_amount" in update_data or "paid_amount" in update_data:
-        # Get existing tx to have current values for calculation
-        tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
-        if tx:
-            total = update_data.get("total_amount", tx.get("total_amount", 0))
-            paid = update_data.get("paid_amount", tx.get("paid_amount"))
-            if paid is not None:
-                update_data["balance"] = float(Decimal(str(total)) - Decimal(str(paid)))
+        total = update_data.get("total_amount", tx.get("total_amount", 0))
+        paid = update_data.get("paid_amount", tx.get("paid_amount"))
+        if paid is not None:
+            update_data["balance"] = float(Decimal(str(total)) - Decimal(str(paid)))
+            
+        # Scale pricing, base amount, and items proportionally if total_amount is changed
+        old_total = tx.get("total_amount", 0)
+        if float(total) != float(old_total):
+            # Resolve GST rate
+            gst_rate = tx.get("gst_rate")
+            if gst_rate is None:
+                if tx.get("invoice_items"):
+                    gst_rate = tx["invoice_items"][0].get("gst_rate", 18.0)
+                elif tx.get("gst_breakdown"):
+                    gst_rate = tx["gst_breakdown"][0].get("rate", 18.0)
+                else:
+                    gst_rate = 18.0
+            
+            total_dec = Decimal(str(total))
+            gst_rate_dec = Decimal(str(gst_rate))
+            base_amount = total_dec / (Decimal("1") + (gst_rate_dec / Decimal("100")))
+            gst_total = total_dec - base_amount
+            
+            update_data["amount"] = float(base_amount)
+            update_data["gst_total"] = float(gst_total)
+            
+            # If there are structured invoice items, scale them proportionally
+            if tx.get("invoice_items") and float(old_total) > 0:
+                ratio = float(total) / float(old_total)
+                new_items = []
+                breakdown_map = {}
+                
+                for item in tx.get("invoice_items", []):
+                    item_total = Decimal(str(item.get("total", 0))) * Decimal(str(ratio))
+                    item_gst_rate = Decimal(str(item.get("gst_rate", 0)))
+                    qty = Decimal(str(item.get("qty", 1)))
+                    price_each = item_total / (Decimal("1") + (item_gst_rate / Decimal("100"))) / qty
+                    item_subtotal = price_each * qty
+                    item_gst = item_total - item_subtotal
+                    
+                    new_items.append({
+                        "name": item["name"],
+                        "qty": int(qty),
+                        "price": float(price_each),
+                        "gst_rate": float(item_gst_rate),
+                        "gst_amount": float(item_gst),
+                        "total": float(item_total),
+                        "hsn": item.get("hsn", "9983")
+                    })
+                    
+                    rate_val = float(item_gst_rate)
+                    if rate_val not in breakdown_map:
+                        breakdown_map[rate_val] = Decimal("0")
+                    breakdown_map[rate_val] += item_gst
+                    
+                update_data["invoice_items"] = new_items
+                
+                new_breakdown = []
+                for rate_val, gst_val in breakdown_map.items():
+                    new_breakdown.append({
+                        "rate": rate_val,
+                        "cgst": float(gst_val / 2),
+                        "sgst": float(gst_val / 2),
+                        "total": float(gst_val)
+                    })
+                update_data["gst_breakdown"] = new_breakdown
 
     result = await db.transactions.update_one({"_id": ObjectId(tx_id)}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Transaction not found")
+        
+    # Sync customers collection if identifiers or transaction subtotal amount changed
+    new_phone = update_data.get("phone", old_phone)
+    new_name = update_data.get("name", old_name).strip()
+    new_amount = update_data.get("amount", old_amount)
+    
+    if old_phone != new_phone or old_name.lower() != new_name.lower() or old_amount != new_amount:
+        if old_phone and old_name:
+            await db.customers.update_one(
+                {"phone": old_phone, "name": {"$regex": f"^{re.escape(old_name)}$", "$options": "i"}},
+                {"$inc": {"total_spent": -old_amount, "total_transactions": -1}}
+            )
+        if new_phone and new_name:
+            await db.customers.update_one(
+                {"phone": new_phone, "name": {"$regex": f"^{re.escape(new_name)}$", "$options": "i"}},
+                {"$set": {"name": new_name}, "$inc": {"total_spent": new_amount, "total_transactions": 1}},
+                upsert=True
+            )
+        await db.customers.delete_many({"total_transactions": {"$lte": 0}})
+        
+    # Regenerate invoice PDF and update URL
+    updated_tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
+    if updated_tx:
+        try:
+            new_invoice_url = generate_invoice_pdf(updated_tx)
+            await db.transactions.update_one({"_id": ObjectId(tx_id)}, {"$set": {"invoice_url": new_invoice_url}})
+            
+            # Safely remove the old PDF file if it is different
+            if old_invoice_url and old_invoice_url != new_invoice_url:
+                old_pdf_path = os.path.join(os.getcwd(), old_invoice_url.lstrip("/"))
+                if os.path.exists(old_pdf_path):
+                    try:
+                        os.remove(old_pdf_path)
+                    except Exception as e:
+                        print(f"Error removing old PDF: {e}")
+        except Exception as e:
+            print(f"Error regenerating invoice: {e}")
+            
     return {"message": "Updated"}
 
 @router.post("/bulk-delete")
@@ -622,7 +730,10 @@ async def delete_payment_proof(tx_id: str, db=Depends(get_db), current_user=Depe
 @router.post("/{tx_id}/send-whatsapp")
 async def send_whatsapp(tx_id: str, db=Depends(get_db)):
     tx = await db.transactions.find_one({"_id": ObjectId(tx_id)})
-    return send_whatsapp_invoice(tx["phone"], tx["invoice_url"])
+    res = send_whatsapp_invoice(tx["phone"], tx["invoice_url"])
+    if res.get("status") != "success":
+        raise HTTPException(status_code=500, detail=res.get("message", "Failed to send WhatsApp message"))
+    return res
 
 async def process_bulk_whatsapp(batch_id: str, ids: List[str], db):
     await db.whatsapp_batches.update_one(
@@ -645,12 +756,18 @@ async def process_bulk_whatsapp(batch_id: str, ids: List[str], db):
                 invoice_url = generate_invoice_pdf(tx)
                 await db.transactions.update_one({"_id": ObjectId(tx_id)}, {"$set": {"invoice_url": invoice_url}})
             
-            send_whatsapp_invoice(tx["phone"], invoice_url)
+            res = send_whatsapp_invoice(tx["phone"], invoice_url)
             
-            await db.whatsapp_batches.update_one(
-                {"batch_id": batch_id, "items.tx_id": tx_id},
-                {"$set": {"items.$.status": "sent", "items.$.sent_at": datetime.utcnow()}}
-            )
+            if res.get("status") == "success":
+                await db.whatsapp_batches.update_one(
+                    {"batch_id": batch_id, "items.tx_id": tx_id},
+                    {"$set": {"items.$.status": "sent", "items.$.sent_at": datetime.utcnow()}}
+                )
+            else:
+                await db.whatsapp_batches.update_one(
+                    {"batch_id": batch_id, "items.tx_id": tx_id},
+                    {"$set": {"items.$.status": "error", "items.$.error": res.get("message", "Failed to send")}}
+                )
             await db.whatsapp_batches.update_one({"batch_id": batch_id}, {"$inc": {"processed": 1}})
             
             if i < len(ids) - 1:

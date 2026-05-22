@@ -6,6 +6,8 @@ import { WA_BASE_URL } from '../services/api';
 export default function WhatsAppLinkModal({ onClose }) {
   const [status, setStatus] = useState('LOADING');
   const [qrCode, setQrCode] = useState(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [justConnected, setJustConnected] = useState(false);
 
   // Poll Node.js service for status & QR
   useEffect(() => {
@@ -13,7 +15,15 @@ export default function WhatsAppLinkModal({ onClose }) {
     const checkStatus = async () => {
       try {
         const res = await axios.get(`${WA_BASE_URL}/api/whatsapp/qr`);
-        setStatus(res.data.status || 'DISCONNECTED');
+        const newStatus = res.data.status || 'DISCONNECTED';
+        
+        setStatus(prevStatus => {
+          if ((prevStatus === 'DISCONNECTED' || prevStatus === 'QR_READY') && newStatus === 'CONNECTED') {
+            setJustConnected(true);
+          }
+          return newStatus;
+        });
+
         if (res.data.qr) {
           setQrCode(res.data.qr);
         }
@@ -28,15 +38,31 @@ export default function WhatsAppLinkModal({ onClose }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-close on success
+  // Auto-close on success (only if the user just scanned and connected)
   useEffect(() => {
-    if (status === 'CONNECTED') {
+    if (status === 'CONNECTED' && justConnected) {
       const timer = setTimeout(() => {
         onClose();
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [status, onClose]);
+  }, [status, justConnected, onClose]);
+
+  const handleDisconnect = async () => {
+    if (!window.confirm('Are you sure you want to disconnect this WhatsApp account?')) return;
+    setDisconnecting(true);
+    try {
+      await axios.post(`${WA_BASE_URL}/api/whatsapp/disconnect`);
+      setStatus('DISCONNECTED');
+      setQrCode(null);
+      setJustConnected(false);
+    } catch (err) {
+      alert('Failed to disconnect WhatsApp. Please try again.');
+      console.error(err);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -82,6 +108,20 @@ export default function WhatsAppLinkModal({ onClose }) {
               <p className="text-sm text-gray-500 max-w-[250px]">
                 Your device is linked. You can now automatically dispatch invoices directly to customers.
               </p>
+              <button 
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+                className="mt-6 bg-red-50 hover:bg-red-100 text-red-600 px-6 py-3 font-black text-[11px] rounded-lg active:scale-95 transition-all flex items-center justify-center gap-2 uppercase tracking-[0.1em] disabled:opacity-50"
+              >
+                {disconnecting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Disconnecting...
+                  </>
+                ) : (
+                  'Disconnect WhatsApp'
+                )}
+              </button>
             </div>
           )}
 

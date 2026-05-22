@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../services/api';
+import api, { BASE_URL } from '../services/api';
 import { Database, RefreshCw, HardDrive, Server } from 'lucide-react';
 
 export default function DB() {
@@ -66,7 +66,9 @@ export default function DB() {
         <div className="bg-white border border-slate-200 rounded-sm p-5 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active Connection</p>
-            <p className="text-xs font-mono font-bold text-emerald-600 mt-2">Connected: localhost:27017</p>
+            <p className="text-xs font-mono font-bold text-emerald-600 mt-2">
+              Connected: {BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1') ? 'localhost:27017' : '3.89.148.127:27017'}
+            </p>
           </div>
           <div className="bg-emerald-50 p-3 rounded-full">
             <Database className="w-5 h-5 text-emerald-600" />
