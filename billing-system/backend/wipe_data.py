@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 async def wipe():
-    client = motor.motor_asyncio.AsyncIOMotorClient(os.getenv("MONGO_URL", "mongodb://localhost:27017"))
+    mongo_url = os.getenv("MONGO_URL", os.getenv("MONGO_URI", "mongodb://localhost:27017"))
+    client = motor.motor_asyncio.AsyncIOMotorClient(mongo_url)
     db = client.zeal_billing_db
     await db.transactions.delete_many({})
     await db.customers.delete_many({})

@@ -59,6 +59,20 @@ client.on('disconnected', (reason) => {
     client.initialize().catch(err => console.error('Re-initialization error on disconnect:', err)); 
 });
 
+const path = require('path');
+const sessionDir = path.join(__dirname, '.wwebjs_auth', 'session');
+['SingletonLock', 'SingletonSocket'].forEach(file => {
+    const filePath = path.join(sessionDir, file);
+    try {
+        fs.unlinkSync(filePath);
+        console.log(`Removed stale ${file} file to allow initialization.`);
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            console.error(`Failed to remove ${file} file:`, e);
+        }
+    }
+});
+
 console.log('Initializing WhatsApp Client...');
 client.initialize().catch(err => {
     console.error('Initial client initialization error:', err);

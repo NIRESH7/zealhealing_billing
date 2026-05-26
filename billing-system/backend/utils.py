@@ -134,19 +134,41 @@ def generate_invoice_pdf(transaction: dict):
     c.setFont("Helvetica", 10)
     c.drawString(50, header_y - 142, f"Contact No. : {transaction.get('phone')}")
     
-    # Calculate Financial Year (FY)
-    now = datetime.utcnow()
-    if now.month >= 4:
-        fy = f"{now.year % 100}-{(now.year + 1) % 100}"
+    # Calculate Financial Year (FY) and Date based on transaction date or fallback
+    tx_date_obj = None
+    tx_date_str = transaction.get('date')
+    if tx_date_str:
+        for fmt in ('%d/%m/%y', '%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%d-%m-%y'):
+            try:
+                tx_date_obj = datetime.strptime(tx_date_str.strip(), fmt)
+                break
+            except ValueError:
+                continue
+
+    if not tx_date_obj:
+        ts = transaction.get('timestamp')
+        if isinstance(ts, datetime):
+            tx_date_obj = ts
+        elif isinstance(ts, str):
+            try:
+                tx_date_obj = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+
+    if not tx_date_obj:
+        tx_date_obj = datetime.utcnow()
+
+    if tx_date_obj.month >= 4:
+        fy = f"{tx_date_obj.year % 100}-{(tx_date_obj.year + 1) % 100}"
     else:
-        fy = f"{(now.year - 1) % 100}-{now.year % 100}"
+        fy = f"{(tx_date_obj.year - 1) % 100}-{tx_date_obj.year % 100}"
         
     c.setFont("Helvetica-Bold", 10)
     c.drawRightString(width - 50, header_y - 112, "Invoice Details")
     c.setFont("Helvetica", 9)
     inv_num = transaction.get('invoice_number', transaction.get('transaction_id', '')[:6])
     c.drawRightString(width - 50, header_y - 129, f"Invoice No. : ZH{fy}/{inv_num}")
-    c.drawRightString(width - 50, header_y - 144, f"Date : {now.strftime('%d-%m-%Y')}")
+    c.drawRightString(width - 50, header_y - 144, f"Date : {tx_date_obj.strftime('%d-%m-%Y')}")
     
     # --- Table Header ---
     table_top = header_y - 172

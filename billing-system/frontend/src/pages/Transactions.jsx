@@ -239,6 +239,25 @@ function ExportModal({ onClose }) {
   );
 }
 
+const formatDateForInput = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('/');
+  if (parts.length === 3) {
+    let [day, month, year] = parts;
+    if (year.length === 2) {
+      year = '20' + year;
+    }
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return dateStr;
+};
+
+const formatDateFromInput = (inputVal) => {
+  if (!inputVal) return '';
+  const [year, month, day] = inputVal.split('-');
+  return `${day}/${month}/${year}`;
+};
+
 // --- Simplified Edit Modal (SaaS Style) ---
 // --- SaaS Multi-Product Search & Bill Creator ---
 function CreateModal({ onClose, onSave }) {
@@ -373,6 +392,11 @@ function CreateModal({ onClose, onSave }) {
             </div>
 
             <div>
+               <label className="text-[10px] font-black text-slate-400 mb-1.5 block uppercase tracking-widest">Billing Date</label>
+               <input required type="date" value={formatDateForInput(formData.date)} onChange={e => setFormData({...formData, date: formatDateFromInput(e.target.value)})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400" />
+            </div>
+
+            <div>
                <label className="text-[10px] font-black text-slate-400 mb-1.5 block uppercase tracking-widest">GPay/Ref ID</label>
                <input required type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400 placeholder:uppercase" placeholder="TXN123456" />
             </div>
@@ -382,7 +406,7 @@ function CreateModal({ onClose, onSave }) {
                <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone:e.target.value})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400" placeholder="WhatsApp Number" />
             </div>
 
-            <div>
+            <div className="col-span-2">
                <label className="text-[10px] font-black text-slate-400 mb-1.5 block uppercase tracking-widest">Paid Amount (₹)</label>
                <input required type="number" value={formData.paid_amount} onChange={e => setFormData({...formData, paid_amount: Number(e.target.value)})} className="w-full px-4 py-2.5 text-[13px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400" placeholder="Amount Paid" />
             </div>
@@ -450,6 +474,10 @@ function EditModal({ tx, onClose, onSave }) {
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Transaction ID</label>
               <input type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id: e.target.value})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Billing Date</label>
+              <input type="date" value={formatDateForInput(formData.date)} onChange={e => setFormData({...formData, date: formatDateFromInput(e.target.value)})} className="w-full px-4 py-3 text-[12px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
             </div>
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Total Amount (₹)</label>
@@ -746,7 +774,7 @@ export default function Transactions() {
     setGeneratingId(tx.id);
     try {
       const res = await api.post(`/transactions/${tx.id}/generate-invoice`);
-      setSingleBill({ url: `${BASE_URL}${res.data.url}`, name: tx.name });
+      setSingleBill({ url: `${BASE_URL}${res.data.url}?t=${Date.now()}`, name: tx.name });
       setActiveTx(tx);
       fetchTransactions();
     } catch { alert('Failed to generate'); }
@@ -988,7 +1016,7 @@ export default function Transactions() {
                                 <button 
                                   onClick={() => {
                                     setActiveTx(tx);
-                                    tx.invoice_url ? setSingleBill({ url: `${BASE_URL}${tx.invoice_url}`, name: tx.name }) : generateInvoice(tx);
+                                    tx.invoice_url ? setSingleBill({ url: `${BASE_URL}${tx.invoice_url}?t=${Date.now()}`, name: tx.name }) : generateInvoice(tx);
                                   }} 
                                   className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded transition-all ${tx.invoice_url ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
                                   title={tx.invoice_url ? "View Bill" : "Generate Bill"}

@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-export const BASE_URL = `http://3.89.148.127:8000`;
-
-export const WA_BASE_URL = `http://3.89.148.127:3001`;
+const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+export const BASE_URL = `http://${hostname}:8000`;
+export const WA_BASE_URL = `http://${hostname}:3001`;
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
