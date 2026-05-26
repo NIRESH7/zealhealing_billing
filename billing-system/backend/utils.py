@@ -360,7 +360,7 @@ def send_whatsapp_invoice(phone: str, invoice_url: str):
         response = requests.post(f'{wa_url}/api/whatsapp/send', json={
             "phone": phone,
             "filePath": absolute_file_path,
-            "message": "Hello, please find your attached invoice from Zeal Healing. Thank you!"
+            "message": "Thank you for choosing *Zeal Healing* ✨\nYour payment has been received successfully."
         })
         
         if response.status_code == 200:
