@@ -106,13 +106,16 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
     return tx_dict
 
 async def get_next_sequence(db, name):
-    """Get next sequence value for a counter (sequential IDs)"""
+    """Get next sequence value based on the highest existing number in the database"""
     if name == "invoice_number":
-        await db.counters.update_one(
-            {"_id": name},
-            {"$setOnInsert": {"sequence_value": 150612}},
-            upsert=True
-        )
+        highest_tx = await db.transactions.find_one({}, sort=[("invoice_number", -1)])
+        if highest_tx and highest_tx.get("invoice_number"):
+            try:
+                return max(150613, int(highest_tx["invoice_number"]) + 1)
+            except (ValueError, TypeError):
+                pass
+        return 150613
+        
     counter = await db.counters.find_one_and_update(
         {"_id": name},
         {"$inc": {"sequence_value": 1}},
@@ -120,6 +123,7 @@ async def get_next_sequence(db, name):
         return_document=True
     )
     return counter["sequence_value"]
+
 
 @router.post("/upload")
 async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), current_user=Depends(get_current_user)):
@@ -132,6 +136,15 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
         
         all_transactions = []
         batch_id = str(uuid.uuid4())
+        
+        # Calculate starting invoice number for this upload batch
+        highest_tx = await db.transactions.find_one({}, sort=[("invoice_number", -1)])
+        next_invoice_num = 150613
+        if highest_tx and highest_tx.get("invoice_number"):
+            try:
+                next_invoice_num = max(150613, int(highest_tx["invoice_number"]) + 1)
+            except (ValueError, TypeError):
+                pass
         
         for sheet in wb.worksheets:
             rows = list(sheet.iter_rows(values_only=False))
@@ -400,7 +413,8 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                 if existing: continue
 
                 # Get Sequential Invoice Number
-                invoice_num = await get_next_sequence(db, "invoice_number")
+                invoice_num = next_invoice_num
+                next_invoice_num += 1
 
                 # Calculate Balance (Official Total - Excel Paid Amount)
                 paid_val = None
