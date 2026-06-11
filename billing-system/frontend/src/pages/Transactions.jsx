@@ -258,6 +258,11 @@ const formatDateFromInput = (inputVal) => {
   return `${day}/${month}/${year}`;
 };
 
+const getBillNumber = (tx) => {
+  if (!tx) return '--';
+  return tx.invoice_number || '--';
+};
+
 // --- Simplified Edit Modal (SaaS Style) ---
 // --- SaaS Multi-Product Search & Bill Creator ---
 function CreateModal({ onClose, onSave }) {
@@ -951,6 +956,7 @@ export default function Transactions() {
                         </button>
                       </th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Date</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Bill No.</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Customer</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Phone</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Transaction ID</th>
@@ -974,6 +980,7 @@ export default function Transactions() {
                             </button>
                           </td>
                           <td className="px-4 py-2.5 text-[12px] font-black text-slate-600 border-r border-slate-100">{tx.date || '--'}</td>
+                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">{getBillNumber(tx)}</td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
                             <span className="text-[13px] font-black text-slate-900">{tx.name}</span>
                           </td>

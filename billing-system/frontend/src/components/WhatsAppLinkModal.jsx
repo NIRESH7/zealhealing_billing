@@ -82,11 +82,26 @@ export default function WhatsAppLinkModal({ onClose }) {
         </div>
 
         <div className="p-8 flex flex-col items-center text-center">
-          {status === 'LOADING' && (
+          {(status === 'LOADING' || status === 'INITIALIZING') && (
             <div className="py-12 flex flex-col items-center">
               <Loader2 className="w-10 h-10 animate-spin text-green-500 mb-4" />
               <p className="text-gray-500 font-medium">Initializing Background Engine...</p>
+              <p className="text-xs text-gray-400 mt-2 max-w-[280px]">
+                Launching chromium browser to establish secure connection. This can take 10-30 seconds on startup.
+              </p>
             </div>
+          )}
+
+          {status === 'INIT_ERROR' && (
+             <div className="py-10 flex flex-col items-center gap-2">
+                 <div className="p-4 bg-red-100 rounded-full mb-2">
+                    <X className="w-8 h-8 text-red-500" />
+                 </div>
+                 <h4 className="font-bold text-gray-950">Initialization Failed</h4>
+                 <p className="text-sm text-gray-500 max-w-[280px]">
+                   Failed to launch Chrome browser. Please ensure Google Chrome is installed on the host machine and check the service logs.
+                 </p>
+             </div>
           )}
 
           {status === 'OFFLINE' && (

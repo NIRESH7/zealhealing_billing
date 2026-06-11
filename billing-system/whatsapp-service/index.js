@@ -9,14 +9,37 @@ app.use(cors());
 app.use(express.json());
 
 let qrData = null;
-let clientStatus = 'DISCONNECTED'; 
+let clientStatus = 'INITIALIZING'; 
+
+// Helper to find Chrome/Chromium on Linux environments if not specified
+const getChromePath = () => {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    const commonPaths = [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/opt/google/chrome/chrome'
+    ];
+    for (const p of commonPaths) {
+        if (fs.existsSync(p)) {
+            console.log(`Auto-detected Chrome/Chromium binary at: ${p}`);
+            return p;
+        }
+    }
+    return undefined;
+};
+
+const chromePath = getChromePath();
 
 const client = new Client({
     authTimeoutMs: 1200000,
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        executablePath: chromePath,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -76,6 +99,7 @@ const sessionDir = path.join(__dirname, '.wwebjs_auth', 'session');
 console.log('Initializing WhatsApp Client...');
 client.initialize().catch(err => {
     console.error('Initial client initialization error:', err);
+    clientStatus = 'INIT_ERROR';
 });
 
 // Routes

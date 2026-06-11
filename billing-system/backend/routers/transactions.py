@@ -83,6 +83,7 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
     tx_dict["status"] = "Pending"
     tx_dict["timestamp"] = datetime.utcnow()
     tx_dict["added_by"] = current_user["username"]
+    tx_dict["invoice_number"] = await get_next_sequence(db, "invoice_number")
     
     # Normalize and Update Customer
     normalized_name = tx_dict["name"].strip()
@@ -106,6 +107,12 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
 
 async def get_next_sequence(db, name):
     """Get next sequence value for a counter (sequential IDs)"""
+    if name == "invoice_number":
+        await db.counters.update_one(
+            {"_id": name},
+            {"$setOnInsert": {"sequence_value": 150612}},
+            upsert=True
+        )
     counter = await db.counters.find_one_and_update(
         {"_id": name},
         {"$inc": {"sequence_value": 1}},
@@ -506,7 +513,7 @@ async def update_transaction(tx_id: str, payload: dict, db=Depends(get_db), curr
     old_invoice_url = tx.get("invoice_url")
     
     # Update transaction details, excluding read-only metadata fields
-    exclude_fields = ["_id", "id", "added_by", "timestamp", "invoice_url", "payment_proof_url", "payment_proof_filename", "payment_proof_uploaded_at"]
+    exclude_fields = ["_id", "id", "added_by", "timestamp", "invoice_url", "payment_proof_url", "payment_proof_filename", "payment_proof_uploaded_at", "invoice_number"]
     update_data = {k: v for k, v in payload.items() if k not in exclude_fields}
     
     # Recalculate balance if total_amount or paid_amount is updated
