@@ -1,18 +1,34 @@
 import React, { useState, useRef, useContext, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { WA_BASE_URL } from '../services/api';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, Download, Shield, RefreshCw, History, X, FileText, File, Plus, Check, AlertCircle, MessageSquare, Smartphone, Loader2 } from 'lucide-react';
 import { UploadContext } from '../context/UploadContext';
 import WhatsAppLinkModal from '../components/WhatsAppLinkModal';
+import WhatsAppConfirmationModal from '../components/WhatsAppConfirmationModal';
+
 
 export default function UploadData() {
   const { files, setFiles } = useContext(UploadContext);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [isWaConnected, setIsWaConnected] = useState(false);
   const [isWaModalOpen, setIsWaModalOpen] = useState(false);
   const [autoDispatch, setAutoDispatch] = useState(true);
+  const [isWaConfirmOpen, setIsWaConfirmOpen] = useState(false);
+  const [waConfirmTxList, setWaConfirmTxList] = useState([]);
   const fileInputRef = useRef(null);
+
+  const handleConfirmWhatsApp = async () => {
+    setIsWaConfirmOpen(false);
+    try {
+      await api.post('/transactions/bulk-whatsapp', { ids: waConfirmTxList.map(tx => tx.id) });
+      navigate('/whatsapp-monitor');
+    } catch (err) {
+      alert('Bulk send failed. Ensure WhatsApp service is online.');
+    }
+  };
 
   // Poll WhatsApp status
   useEffect(() => {
@@ -73,22 +89,19 @@ export default function UploadData() {
 
       // Auto-dispatch if requested
       if (autoDispatch && data.batch_id) {
-        setFiles(prev => prev.map(f => ({ ...f, status: 'DISPATCHING...' })));
+        setFiles(prev => prev.map(f => ({ ...f, status: 'FETCHING RECIPIENTS...' })));
         try {
-          // Fetch the transactions for this batch and send them
+          // Fetch the transactions for this batch and open confirmation modal
           const txRes = await api.get('/transactions', { params: { latest_batch_only: true } });
           const batchItems = txRes.data.items;
           
-          let sentOk = 0;
-          for (const tx of batchItems) {
-            if (tx.invoice_url) {
-              await api.post(`/transactions/${tx.id}/send-whatsapp`);
-              sentOk++;
-            }
+          if (batchItems && batchItems.length > 0) {
+            setWaConfirmTxList(batchItems);
+            setIsWaConfirmOpen(true);
+            statusMsg += " Pending your WhatsApp dispatch confirmation.";
           }
-          statusMsg += ` AND ${sentOk} bills dispatched via WhatsApp automatically!`;
         } catch (waErr) {
-          console.error('Auto-dispatch failed:', waErr);
+          console.error('Auto-dispatch failed to fetch recipients:', waErr);
           statusMsg += " (WhatsApp auto-dispatch encountered an error, please check manually)";
         }
       }
@@ -107,6 +120,12 @@ export default function UploadData() {
   return (
     <>
       {isWaModalOpen && <WhatsAppLinkModal onClose={() => setIsWaModalOpen(false)} />}
+      <WhatsAppConfirmationModal 
+        isOpen={isWaConfirmOpen} 
+        onClose={() => setIsWaConfirmOpen(false)} 
+        onConfirm={handleConfirmWhatsApp} 
+        transactions={waConfirmTxList} 
+      />
       <div className="min-h-full bg-white p-8 md:p-12 xl:p-16 max-w-7xl mx-auto font-sans">
       <div className="mb-8 pl-1">
         <div className="flex items-center text-[10px] font-black tracking-widest text-[#94a3b8] uppercase mb-4">

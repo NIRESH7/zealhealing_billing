@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import api, { BASE_URL } from '../services/api';
 import { Search, Eye, Download, X, Loader2, CheckSquare, Square, ChevronLeft, ChevronRight, MessageCircle, AlertTriangle, Edit3, Trash2, Filter, Layers, Eraser, MoreVertical, Plus, ChevronDown, FileText, Calendar, Package, Check, Upload, Image, ShieldCheck, ShieldX, FileImage } from 'lucide-react';
+import WhatsAppConfirmationModal from '../components/WhatsAppConfirmationModal';
 
 // --- Export Analytics Modal ---
 function ExportModal({ onClose }) {
@@ -677,6 +678,8 @@ export default function Transactions() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [isWaConfirmOpen, setIsWaConfirmOpen] = useState(false);
+  const [waConfirmTxList, setWaConfirmTxList] = useState([]);
 
   const duplicateIds = React.useMemo(() => {
     const counts = {};
@@ -743,10 +746,15 @@ export default function Transactions() {
     }
   };
 
-  const handleBulkWhatsApp = async () => {
+  const handleBulkWhatsAppClick = () => {
     if (selected.length === 0) return;
-    if (!window.confirm(`Send WhatsApp bills to ${selected.length} users with safety delays?`)) return;
-    
+    const txsToConfirm = data.items.filter(item => selected.includes(item.id));
+    setWaConfirmTxList(txsToConfirm);
+    setIsWaConfirmOpen(true);
+  };
+
+  const handleConfirmBulkWhatsApp = async () => {
+    setIsWaConfirmOpen(false);
     setSendingWhatsApp(true);
     try {
       const _res = await api.post('/transactions/bulk-whatsapp', { ids: selected });
@@ -758,6 +766,7 @@ export default function Transactions() {
       setSendingWhatsApp(false);
     }
   };
+
 
   const handleBulkDelete = async () => {
     if (!window.confirm(`Permanently delete ${selectAllAll ? data.total : selected.length} entries?`)) return;
@@ -793,6 +802,12 @@ export default function Transactions() {
       {isCreateModalOpen && <CreateModal onClose={() => setIsCreateModalOpen(false)} onSave={() => { setIsCreateModalOpen(false); fetchTransactions(); }} />}
       {isExportModalOpen && <ExportModal onClose={() => setIsExportModalOpen(false)} />}
       {editingTx && <EditModal tx={editingTx} onClose={() => setEditingTx(null)} onSave={() => { setEditingTx(null); fetchTransactions(); }} />}
+      <WhatsAppConfirmationModal 
+        isOpen={isWaConfirmOpen} 
+        onClose={() => setIsWaConfirmOpen(false)} 
+        onConfirm={handleConfirmBulkWhatsApp} 
+        transactions={waConfirmTxList} 
+      />
       
       {singleBill && (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
@@ -879,7 +894,7 @@ export default function Transactions() {
             </div>
             <div className="flex items-center gap-3">
               <button 
-                onClick={handleBulkWhatsApp}
+                onClick={handleBulkWhatsAppClick}
                 disabled={sendingWhatsApp}
                 className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 disabled:opacity-50"
               >
