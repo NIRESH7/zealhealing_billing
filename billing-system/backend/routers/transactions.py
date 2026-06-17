@@ -111,10 +111,10 @@ async def get_next_sequence(db, name):
         highest_tx = await db.transactions.find_one({}, sort=[("invoice_number", -1)])
         if highest_tx and highest_tx.get("invoice_number"):
             try:
-                return max(150613, int(highest_tx["invoice_number"]) + 1)
+                return max(150614, int(highest_tx["invoice_number"]) + 1)
             except (ValueError, TypeError):
                 pass
-        return 150613
+        return 150614
         
     counter = await db.counters.find_one_and_update(
         {"_id": name},
@@ -139,10 +139,10 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
         
         # Calculate starting invoice number for this upload batch
         highest_tx = await db.transactions.find_one({}, sort=[("invoice_number", -1)])
-        next_invoice_num = 150613
+        next_invoice_num = 150614
         if highest_tx and highest_tx.get("invoice_number"):
             try:
-                next_invoice_num = max(150613, int(highest_tx["invoice_number"]) + 1)
+                next_invoice_num = max(150614, int(highest_tx["invoice_number"]) + 1)
             except (ValueError, TypeError):
                 pass
         
