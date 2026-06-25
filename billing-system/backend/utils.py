@@ -48,6 +48,36 @@ def get_hsn_details(product_name):
     elif any(w in p_lower for w in ["tarot", "reading"]): return "9983", 18.0
     return "9983", 18.0 # Default
 
+def get_transaction_fy(transaction: dict) -> str:
+    tx_date_obj = None
+    tx_date_str = transaction.get('date')
+    if tx_date_str:
+        for fmt in ('%d/%m/%y', '%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%d-%m-%y'):
+            try:
+                tx_date_obj = datetime.strptime(tx_date_str.strip(), fmt)
+                break
+            except ValueError:
+                continue
+
+    if not tx_date_obj:
+        ts = transaction.get('timestamp')
+        if isinstance(ts, datetime):
+            tx_date_obj = ts
+        elif isinstance(ts, str):
+            try:
+                tx_date_obj = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+
+    if not tx_date_obj:
+        tx_date_obj = datetime.utcnow()
+
+    if tx_date_obj.month >= 4:
+        fy = f"{tx_date_obj.year % 100}-{(tx_date_obj.year + 1) % 100}"
+    else:
+        fy = f"{(tx_date_obj.year - 1) % 100}-{tx_date_obj.year % 100}"
+    return fy
+
 def generate_invoice_pdf(transaction: dict):
     if not transaction:
         raise ValueError("Transaction data is empty")
@@ -135,6 +165,7 @@ def generate_invoice_pdf(transaction: dict):
     c.drawString(50, header_y - 142, f"Contact No. : {transaction.get('phone')}")
     
     # Calculate Financial Year (FY) and Date based on transaction date or fallback
+    fy = get_transaction_fy(transaction)
     tx_date_obj = None
     tx_date_str = transaction.get('date')
     if tx_date_str:
@@ -144,7 +175,6 @@ def generate_invoice_pdf(transaction: dict):
                 break
             except ValueError:
                 continue
-
     if not tx_date_obj:
         ts = transaction.get('timestamp')
         if isinstance(ts, datetime):
@@ -154,14 +184,8 @@ def generate_invoice_pdf(transaction: dict):
                 tx_date_obj = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except ValueError:
                 pass
-
     if not tx_date_obj:
         tx_date_obj = datetime.utcnow()
-
-    if tx_date_obj.month >= 4:
-        fy = f"{tx_date_obj.year % 100}-{(tx_date_obj.year + 1) % 100}"
-    else:
-        fy = f"{(tx_date_obj.year - 1) % 100}-{tx_date_obj.year % 100}"
         
     c.setFont("Helvetica-Bold", 10)
     c.drawRightString(width - 50, header_y - 112, "Invoice Details")

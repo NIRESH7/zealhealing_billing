@@ -3,6 +3,7 @@ from database import get_db
 from auth import get_current_user
 from datetime import datetime, timedelta
 from typing import Optional, List
+from utils import get_transaction_fy
 
 router = APIRouter()
 
@@ -15,12 +16,27 @@ def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], 
         clean_names = [n for n in names if n and n != "All" and n != "Customers"]
         if clean_names: query["name"] = {"$in": clean_names}
     if year and year != "All" and year != "Period":
-        try:
-            year_int = int(year)
-            start_date = datetime(year_int, 1, 1)
-            end_date = datetime(year_int + 1, 1, 1)
-            query["timestamp"] = {"$gte": start_date, "$lt": end_date}
-        except: pass
+        if "-" in year:
+            try:
+                parts = year.split("-")
+                start_yy = int(parts[0])
+                end_yy = int(parts[1])
+                # Convert 2-digit years to 4-digit years (assuming 2000s)
+                start_year = 2000 + start_yy
+                end_year = 2000 + end_yy
+                # Financial year starts April 1st of start_year
+                start_date = datetime(start_year, 4, 1)
+                # Financial year ends March 31st of end_year, so exclusive boundary is April 1st of end_year
+                end_date = datetime(end_year, 4, 1)
+                query["timestamp"] = {"$gte": start_date, "$lt": end_date}
+            except: pass
+        else:
+            try:
+                year_int = int(year)
+                start_date = datetime(year_int, 1, 1)
+                end_date = datetime(year_int + 1, 1, 1)
+                query["timestamp"] = {"$gte": start_date, "$lt": end_date}
+            except: pass
     return query
 
 @router.get("/filters")
@@ -30,10 +46,32 @@ async def get_dashboard_filters(db=Depends(get_db)):
     customers_cursor = db.customers.find({}, {"name": 1}).sort("name", 1)
     customers = await customers_cursor.to_list(length=1000)
     customer_names = [c["name"] for c in customers if c.get("name")]
-    pipeline = [{"$project": {"year": {"$year": "$timestamp"}}}, {"$group": {"_id": "$year"}}, {"$sort": {"_id": -1}}]
+    
+    # Aggregate to get distinct months and years to build financial years list dynamically
+    pipeline = [
+        {"$match": {"status": "Verified", "timestamp": {"$ne": None}}},
+        {"$project": {
+            "year": {"$year": "$timestamp"},
+            "month": {"$month": "$timestamp"}
+        }},
+        {"$group": {
+            "_id": {"year": "$year", "month": "$month"}
+        }}
+    ]
     year_cursor = db.transactions.aggregate(pipeline)
-    years_res = await year_cursor.to_list(length=10)
-    years = [str(y["_id"]) for y in years_res if y["_id"]]
+    years_res = await year_cursor.to_list(length=100)
+    fy_set = set()
+    for item in years_res:
+        g = item["_id"]
+        y = g.get("year")
+        m = g.get("month")
+        if y and m:
+            if m >= 4:
+                fy = f"{y % 100}-{(y + 1) % 100}"
+            else:
+                fy = f"{(y - 1) % 100}-{y % 100}"
+            fy_set.add(fy)
+    years = sorted(list(fy_set), reverse=True)
     
     # Calculate Max Visits for dynamic filter range
     max_visits_res = await db.customers.find_one(sort=[("total_transactions", -1)])
@@ -42,7 +80,7 @@ async def get_dashboard_filters(db=Depends(get_db)):
     return {
         "products": products, 
         "customers": customer_names, 
-        "years": years if years else [str(datetime.now().year)],
+        "years": years if years else [f"{datetime.now().year % 100}-{(datetime.now().year + 1) % 100}"],
         "max_visits": max_visits
     }
 
@@ -131,7 +169,16 @@ async def get_dashboard_activity(db=Depends(get_db), current_user=Depends(get_cu
     activities = await cursor.to_list(length=6)
     result = []
     for act in activities:
-        result.append({"timestamp": act.get("date") or act["timestamp"].strftime("%d/%m/%y"), "event": f"Billing Logged: {act.get('product', 'Generic Service')}", "status": act.get("status", "Pending").upper(), "user": act.get("name", "Unknown"), "reference": act.get("transaction_id", "TRX-XXXX")})
+        fy = get_transaction_fy(act)
+        inv_num = act.get("invoice_number", act.get("transaction_id", "")[:6])
+        ref_label = f"ZH{fy}/{inv_num}" if inv_num else act.get("transaction_id", "TRX-XXXX")
+        result.append({
+            "timestamp": act.get("date") or act["timestamp"].strftime("%d/%m/%y"),
+            "event": f"Billing Logged: {act.get('product', 'Generic Service')}",
+            "status": act.get("status", "Pending").upper(),
+            "user": act.get("name", "Unknown"),
+            "reference": ref_label
+        })
     return result
 
 @router.get("/top-courses")

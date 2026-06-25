@@ -261,7 +261,109 @@ const formatDateFromInput = (inputVal) => {
 
 const getBillNumber = (tx) => {
   if (!tx) return '--';
-  return tx.invoice_number || '--';
+  if (!tx.invoice_number) return '--';
+  
+  let dateObj = null;
+  const dateStr = tx.date;
+  if (dateStr) {
+    const formats = [
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/,
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/,
+      /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/
+    ];
+    for (const regex of formats) {
+      const match = dateStr.match(regex);
+      if (match) {
+        let day, month, year;
+        if (regex === formats[2]) {
+          year = Number(match[1]);
+          month = Number(match[2]);
+          day = Number(match[3]);
+        } else {
+          day = Number(match[1]);
+          month = Number(match[2]);
+          year = Number(match[3]);
+          if (year < 100) {
+            year += 2000;
+          }
+        }
+        dateObj = new Date(year, month - 1, day);
+        break;
+      }
+    }
+  }
+  
+  if (!dateObj && tx.timestamp) {
+    dateObj = new Date(tx.timestamp);
+  }
+  
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    dateObj = new Date();
+  }
+  
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth() + 1;
+  let fy = '';
+  if (month >= 4) {
+    fy = `${year % 100}-${(year + 1) % 100}`;
+  } else {
+    fy = `${(year - 1) % 100}-${year % 100}`;
+  }
+  
+  return `ZH${fy}/${tx.invoice_number}`;
+};
+
+const getFinancialYear = (tx) => {
+  if (!tx) return '--';
+  
+  let dateObj = null;
+  const dateStr = tx.date;
+  if (dateStr) {
+    const formats = [
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/,
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/,
+      /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/
+    ];
+    for (const regex of formats) {
+      const match = dateStr.match(regex);
+      if (match) {
+        let day, month, year;
+        if (regex === formats[2]) {
+          year = Number(match[1]);
+          month = Number(match[2]);
+          day = Number(match[3]);
+        } else {
+          day = Number(match[1]);
+          month = Number(match[2]);
+          year = Number(match[3]);
+          if (year < 100) {
+            year += 2000;
+          }
+        }
+        dateObj = new Date(year, month - 1, day);
+        break;
+      }
+    }
+  }
+  
+  if (!dateObj && tx.timestamp) {
+    dateObj = new Date(tx.timestamp);
+  }
+  
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    dateObj = new Date();
+  }
+  
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth() + 1;
+  let fy = '';
+  if (month >= 4) {
+    fy = `${year % 100}-${(year + 1) % 100}`;
+  } else {
+    fy = `${(year - 1) % 100}-${year % 100}`;
+  }
+  
+  return `FY ${fy}`;
 };
 
 // --- Simplified Edit Modal (SaaS Style) ---
@@ -681,6 +783,9 @@ export default function Transactions() {
   const [isWaConfirmOpen, setIsWaConfirmOpen] = useState(false);
   const [waConfirmTxList, setWaConfirmTxList] = useState([]);
 
+  const [years, setYears] = useState([]);
+  const [selectedYear, setSelectedYear] = useState('All');
+
   const duplicateIds = React.useMemo(() => {
     const counts = {};
     data.items.forEach(item => {
@@ -695,12 +800,20 @@ export default function Transactions() {
     setLoading(true);
     try {
       const res = await api.get('/transactions/', {
-        params: { skip: page * pageSize, limit: pageSize, search, status, latest_batch_only: latestBatchOnly }
+        params: { skip: page * pageSize, limit: pageSize, search, status, latest_batch_only: latestBatchOnly, year: selectedYear }
       });
       setData(res.data);
     } catch { console.error("Fetch failed"); }
     finally { setLoading(false); }
-  }, [page, pageSize, search, status, latestBatchOnly]);
+  }, [page, pageSize, search, status, latestBatchOnly, selectedYear]);
+
+  useEffect(() => {
+    api.get('/dashboard/filters').then(res => {
+      if (res.data && res.data.years) {
+        setYears(res.data.years);
+      }
+    }).catch(err => console.error("Failed to load filters", err));
+  }, []);
 
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
@@ -944,6 +1057,13 @@ export default function Transactions() {
             )}
           </form>
           <div className="relative w-full md:w-48">
+            <select value={selectedYear} onChange={(e) => { setSelectedYear(e.target.value); setPage(0); }} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
+              <option value="All">All FY</option>
+              {years.map(y => <option key={y} value={y}>{y.includes('-') ? `FY ${y}` : y}</option>)}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
+          </div>
+          <div className="relative w-full md:w-48">
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
               <option value="All">All Transactions</option>
               <option value="Verified">Verified</option>
@@ -972,6 +1092,7 @@ export default function Transactions() {
                       </th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Date</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Bill No.</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">FY</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Customer</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Phone</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Transaction ID</th>
@@ -994,8 +1115,9 @@ export default function Transactions() {
                               {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                             </button>
                           </td>
-                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-600 border-r border-slate-100">{tx.date || '--'}</td>
-                          <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">{getBillNumber(tx)}</td>
+                           <td className="px-4 py-2.5 text-[12px] font-black text-slate-600 border-r border-slate-100">{tx.date || '--'}</td>
+                           <td className="px-4 py-2.5 text-[12px] font-black text-slate-900 border-r border-slate-100">{getBillNumber(tx)}</td>
+                           <td className="px-4 py-2.5 text-[12px] font-black text-slate-600 border-r border-slate-100 whitespace-nowrap">{getFinancialYear(tx)}</td>
                           <td className="px-4 py-2.5 border-r border-slate-100">
                             <span className="text-[13px] font-black text-slate-900">{tx.name}</span>
                           </td>

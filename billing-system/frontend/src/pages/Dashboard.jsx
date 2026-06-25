@@ -182,8 +182,8 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
             <Calendar className="w-3.5 h-3.5 text-emerald-500" />
             <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="text-[11px] font-bold text-slate-600 bg-transparent outline-none appearance-none pr-1 cursor-pointer">
-              <option value="All">All Years</option>
-              {filters.years.map(y => <option key={y} value={y}>{y}</option>)}
+              <option value="All">All FY</option>
+              {filters.years.map(y => <option key={y} value={y}>{y.includes('-') ? `FY ${y}` : y}</option>)}
             </select>
           </div>
         </div>

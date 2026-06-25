@@ -474,7 +474,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/")
-async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, search: str = None, latest_batch_only: bool = False, db=Depends(get_db), current_user=Depends(get_current_user)):
+async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, search: str = None, latest_batch_only: bool = False, year: str = None, db=Depends(get_db), current_user=Depends(get_current_user)):
     query = {}
     if status and status != "All": query["status"] = status
     if search:
@@ -487,6 +487,29 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
     if latest_batch_only:
         latest = await db.transactions.find_one(sort=[("timestamp", -1)])
         if latest: query["batch_id"] = latest.get("batch_id")
+        
+    if year and year != "All":
+        if "-" in year:
+            try:
+                parts = year.split("-")
+                start_yy = int(parts[0])
+                end_yy = int(parts[1])
+                # Convert 2-digit years to 4-digit years (assuming 2000s)
+                start_year = 2000 + start_yy
+                end_year = 2000 + end_yy
+                # Financial year starts April 1st of start_year
+                start_date = datetime(start_year, 4, 1)
+                # Financial year ends March 31st of end_year, so exclusive boundary is April 1st of end_year
+                end_date = datetime(end_year, 4, 1)
+                query["timestamp"] = {"$gte": start_date, "$lt": end_date}
+            except: pass
+        else:
+            try:
+                year_int = int(year)
+                start_date = datetime(year_int, 1, 1)
+                end_date = datetime(year_int + 1, 1, 1)
+                query["timestamp"] = {"$gte": start_date, "$lt": end_date}
+            except: pass
             
     cursor = db.transactions.find(query).sort([("timestamp", -1)]).skip(skip).limit(limit)
     transactions = await cursor.to_list(length=limit)
