@@ -5,7 +5,10 @@ venv/
 .env
 *.pyc
 .wwebjs_auth/
+.wwebjs_auth_bak/
 .wwebjs_cache/
+**/.wwebjs_auth*/
+**/.wwebjs_cache*/
 uploads/
 *.zip
 *.tar.gz
