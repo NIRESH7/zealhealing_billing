@@ -310,7 +310,7 @@ const getBillNumber = (tx) => {
     fy = `${(year - 1) % 100}-${year % 100}`;
   }
   
-  return `ZH${fy}/${tx.invoice_number}`;
+  return `ZH/FY${fy}/${tx.invoice_number}`;
 };
 
 const getFinancialYear = (tx) => {

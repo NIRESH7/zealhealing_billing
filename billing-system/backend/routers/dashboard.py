@@ -171,7 +171,7 @@ async def get_dashboard_activity(db=Depends(get_db), current_user=Depends(get_cu
     for act in activities:
         fy = get_transaction_fy(act)
         inv_num = act.get("invoice_number", act.get("transaction_id", "")[:6])
-        ref_label = f"ZH{fy}/{inv_num}" if inv_num else act.get("transaction_id", "TRX-XXXX")
+        ref_label = f"ZH/FY{fy}/{inv_num}" if inv_num else act.get("transaction_id", "TRX-XXXX")
         result.append({
             "timestamp": act.get("date") or act["timestamp"].strftime("%d/%m/%y"),
             "event": f"Billing Logged: {act.get('product', 'Generic Service')}",
