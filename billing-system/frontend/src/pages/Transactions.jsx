@@ -55,7 +55,23 @@ function ExportModal({ onClose }) {
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = url;
-      const filename = `Zeal_Analytics_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      let filename = 'Sale_Report';
+      if ((filterMode === 'date' || filterMode === 'both') && startDate && endDate) {
+        const formatD = (dStr) => {
+          const parts = dStr.split('-');
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        };
+        filename = `Sale_Report_${formatD(startDate)}_to_${formatD(endDate)}`;
+      } else {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        filename = `Sale_Report_${dd}-${mm}-${yyyy}`;
+      }
+      filename += '.xlsx';
+      
       link.download = filename;
       document.body.appendChild(link);
       link.click();

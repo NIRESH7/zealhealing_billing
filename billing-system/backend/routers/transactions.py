@@ -889,7 +889,8 @@ async def bulk_export(payload: dict, db=Depends(get_db)):
 
 @router.post("/export-analytics")
 async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
-    """Export analytics report as Excel with date and/or product filters."""
+    """Export analytics report as Excel matching the template format with two sheets: 'Sale Report' and 'Sale Items'."""
+    from openpyxl.utils import get_column_letter
     
     start_date = payload.get("start_date")  # "YYYY-MM-DD"
     end_date = payload.get("end_date")      # "YYYY-MM-DD"
@@ -927,11 +928,67 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     cursor = db.transactions.find(query).sort([("timestamp", -1)])
     transactions = await cursor.to_list(length=100000)
     
+    # Fetch all products to determine if an item is a service for Sheet 2 Unit column
+    products_cursor = db.products.find({}, {"name": 1, "is_service": 1})
+    products_list = await products_cursor.to_list(length=1000)
+    service_map = {p["name"].lower().strip(): p.get("is_service", False) for p in products_list}
+    
     # Create Excel workbook
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Analytics Report"
     
+    # Helper to format transaction date
+    def format_tx_date(tx):
+        date_str = tx.get("date")
+        if date_str:
+            try:
+                if re.match(r'^\d{4}-\d{2}-\d{2}', date_str):
+                    dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
+                    return dt.strftime("%d/%m/%Y")
+                parts = re.split(r'[/-]', date_str)
+                if len(parts) == 3:
+                    d, m, y = parts[0], parts[1], parts[2]
+                    if len(y) == 2:
+                        y = "20" + y
+                    return f"{int(d):02d}/{int(m):02d}/{y}"
+            except:
+                pass
+        ts = tx.get("timestamp")
+        if ts:
+            if hasattr(ts, "strftime"):
+                return ts.strftime("%d/%m/%Y")
+        return datetime.utcnow().strftime("%d/%m/%Y")
+
+    # Helper to format invoice number
+    def get_invoice_number_formatted(tx):
+        inv_num = tx.get("invoice_number")
+        if not inv_num:
+            return ""
+        
+        date_obj = tx.get("timestamp")
+        if not date_obj:
+            date_str = tx.get("date")
+            if date_str:
+                try:
+                    parts = re.split(r'[/-]', date_str)
+                    if len(parts) == 3:
+                        d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+                        if y < 100:
+                            y += 2000
+                        date_obj = datetime(y, m, d)
+                except:
+                    pass
+        if not date_obj:
+            date_obj = datetime.utcnow()
+            
+        year = date_obj.year
+        month = date_obj.month
+        if month >= 4:
+            fy = f"{year % 100:02d}-{(year + 1) % 100:02d}"
+        else:
+            fy = f"{(year - 1) % 100:02d}-{year % 100:02d}"
+            
+        return f"ZH-FY{fy}/{inv_num}"
+
     # Styles
     header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1e293b", end_color="1e293b", fill_type="solid")
@@ -943,111 +1000,200 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
         bottom=Side(style="thin", color="e2e8f0")
     )
     data_font = Font(name="Calibri", size=10)
-    currency_font = Font(name="Calibri", size=10, bold=True)
+    total_font = Font(name="Calibri", bold=True, size=11, color="10b981")
+    total_fill = PatternFill(start_color="f0fdf4", end_color="f0fdf4", fill_type="solid")
     
-    # Title row
-    ws.merge_cells("A1:M1")
-    title_cell = ws["A1"]
-    title_cell.value = "ZEAL HEALING — Analytics Report"
-    title_cell.font = Font(name="Calibri", bold=True, size=14, color="10b981")
-    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    # ----------------------------------------------------
+    # SHEET 1: Sale Report (Invoice summary ledger)
+    # ----------------------------------------------------
+    ws1 = wb.active
+    ws1.title = "Sale Report"
     
-    # Filter info row
-    ws.merge_cells("A2:M2")
-    filter_parts = []
-    if start_date:
-        filter_parts.append(f"From: {start_date}")
-    if end_date:
-        filter_parts.append(f"To: {end_date}")
-    if products:
-        filter_parts.append(f"Products: {', '.join(products)}")
-    if not filter_parts:
-        filter_parts.append("All Data (No Filters)")
-    ws["A2"].value = " | ".join(filter_parts)
-    ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="64748b")
-    ws["A2"].alignment = Alignment(horizontal="center")
+    # Row 0 (openpyxl Row 1): Generation timestamp
+    gen_time_str = datetime.now().strftime('%b %d,%Y at %I:%M %p').replace('AM', 'am').replace('PM', 'pm')
+    ws1.cell(row=1, column=1, value=f"Generated on {gen_time_str}").font = Font(name="Calibri", size=10, italic=True, color="64748b")
     
-    # Generated date
-    ws.merge_cells("A3:M3")
-    ws["A3"].value = f"Generated: {datetime.now().strftime('%d/%m/%Y %I:%M %p')}"
-    ws["A3"].font = Font(name="Calibri", size=9, italic=True, color="94a3b8")
-    ws["A3"].alignment = Alignment(horizontal="center")
+    # Row 1 (openpyxl Row 2): Empty spacer row
     
-    # Headers at row 5
-    headers = ["#", "Date", "Customer", "Phone", "Transaction ID", "Items/Product", "Subtotal (₹)", "GST (₹)", "Total (₹)", "Paid (₹)", "Balance (₹)", "Status", "Payment Proof"]
-    for col_idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=5, column=col_idx, value=header)
+    # Row 2 (openpyxl Row 3): UserName metadata
+    ws1.cell(row=3, column=1, value="UserName").font = Font(name="Calibri", size=10, bold=True)
+    ws1.cell(row=3, column=2, value=current_user["username"]).font = Font(name="Calibri", size=10)
+    
+    # Row 3 (openpyxl Row 4): Column Headers
+    headers1 = ['Date', 'Party Name', 'Phone No.', "Party's GSTIN No.", 'Order No.', 'Invoice No.', 'Transaction Type', 'Total Amount', 'Payment Type', 'Received Amount', 'Balance Amount', 'Description']
+    for col_idx, header in enumerate(headers1, 1):
+        cell = ws1.cell(row=4, column=col_idx, value=header)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_alignment
         cell.border = thin_border
-    
-    # Data rows
-    total_revenue = 0
-    total_gst_sum = 0
-    total_paid = 0
-    
-    for row_idx, tx in enumerate(transactions, 6):
-        ws.cell(row=row_idx, column=1, value=row_idx - 5).font = data_font
-        ws.cell(row=row_idx, column=2, value=tx.get("date", "-")).font = data_font
-        ws.cell(row=row_idx, column=3, value=tx.get("name", "-")).font = data_font
-        ws.cell(row=row_idx, column=4, value=tx.get("phone", "-")).font = data_font
-        ws.cell(row=row_idx, column=5, value=tx.get("transaction_id", "-")).font = data_font
-        ws.cell(row=row_idx, column=6, value=tx.get("product", "-")).font = data_font
         
-        subtotal = tx.get("amount", 0)
-        gst = tx.get("gst_total", 0)
-        total_amt = tx.get("total_amount", 0)
-        paid = tx.get("paid_amount") or 0
-        balance = tx.get("balance") or 0
+    # Row 4 (openpyxl Row 5): Empty spacer row
+    
+    # Data rows start at Row 6
+    row_idx1 = 6
+    total_amount_sum = 0.0
+    received_amount_sum = 0.0
+    balance_amount_sum = 0.0
+    
+    for tx in transactions:
+        tot_amt = float(tx.get("total_amount", 0.0))
+        rec_amt = float(tx.get("paid_amount", tx.get("total_amount", 0.0)) if tx.get("paid_amount") is not None else tx.get("total_amount", 0.0))
+        bal_amt = float(tx.get("balance", 0.0) if tx.get("balance") is not None else 0.0)
         
-        ws.cell(row=row_idx, column=7, value=round(subtotal, 2)).font = currency_font
-        ws.cell(row=row_idx, column=8, value=round(gst, 2)).font = currency_font
-        ws.cell(row=row_idx, column=9, value=round(total_amt, 2)).font = currency_font
-        ws.cell(row=row_idx, column=10, value=round(paid, 2)).font = currency_font
-        ws.cell(row=row_idx, column=11, value=round(balance, 2)).font = currency_font
-        ws.cell(row=row_idx, column=12, value=tx.get("status", "-")).font = data_font
+        ws1.cell(row=row_idx1, column=1, value=format_tx_date(tx)).alignment = Alignment(horizontal="center")
+        ws1.cell(row=row_idx1, column=2, value=tx.get("name", "")).alignment = Alignment(horizontal="left")
+        ws1.cell(row=row_idx1, column=3, value=tx.get("phone", "")).alignment = Alignment(horizontal="center")
+        ws1.cell(row=row_idx1, column=4, value=tx.get("gstin", "")) # Party GSTIN
+        ws1.cell(row=row_idx1, column=5, value=tx.get("order_no", "")) # Order No
+        ws1.cell(row=row_idx1, column=6, value=get_invoice_number_formatted(tx)).alignment = Alignment(horizontal="center")
+        ws1.cell(row=row_idx1, column=7, value="Sale").alignment = Alignment(horizontal="center")
         
-        # Payment Proof column — show "Verified" if proof uploaded, else "Not Verified"
-        proof_status = "Verified" if tx.get("payment_proof_url") else "Not Verified"
-        proof_cell = ws.cell(row=row_idx, column=13, value=proof_status)
-        proof_cell.font = Font(name="Calibri", size=10, bold=True, color="10b981" if proof_status == "Verified" else "ef4444")
+        c8 = ws1.cell(row=row_idx1, column=8, value=f"{tot_amt:.2f}")
+        c8.alignment = Alignment(horizontal="right")
         
-        for c in range(1, 14):
-            ws.cell(row=row_idx, column=c).border = thin_border
-            ws.cell(row=row_idx, column=c).alignment = Alignment(horizontal="center", vertical="center")
-
+        ws1.cell(row=row_idx1, column=9, value=tx.get("transaction_id", "")).alignment = Alignment(horizontal="center")
         
-        total_revenue += total_amt
-        total_gst_sum += gst
-        total_paid += paid
+        c10 = ws1.cell(row=row_idx1, column=10, value=f"{rec_amt:.2f}")
+        c10.alignment = Alignment(horizontal="right")
+        
+        c11 = ws1.cell(row=row_idx1, column=11, value=f"{bal_amt:.2f}")
+        c11.alignment = Alignment(horizontal="right")
+        
+        ws1.cell(row=row_idx1, column=12, value=tx.get("description", "")).alignment = Alignment(horizontal="left")
+        
+        # Apply data font & border to all cells in the row
+        for c in range(1, 13):
+            cell = ws1.cell(row=row_idx1, column=c)
+            cell.font = data_font
+            cell.border = thin_border
+            
+        total_amount_sum += tot_amt
+        received_amount_sum += rec_amt
+        balance_amount_sum += bal_amt
+        row_idx1 += 1
+        
+    # Spacer row
+    for c in range(1, 13):
+        ws1.cell(row=row_idx1, column=c).border = thin_border
+    row_idx1 += 1
     
-    # Summary row
-    summary_row = len(transactions) + 6
-    summary_fill = PatternFill(start_color="f0fdf4", end_color="f0fdf4", fill_type="solid")
-    summary_font = Font(name="Calibri", bold=True, size=11, color="10b981")
+    # Totals Row
+    ws1.cell(row=row_idx1, column=7, value="Total").alignment = Alignment(horizontal="center")
+    ws1.cell(row=row_idx1, column=8, value=f"{total_amount_sum:.2f}").alignment = Alignment(horizontal="right")
+    ws1.cell(row=row_idx1, column=10, value=f"{received_amount_sum:.2f}").alignment = Alignment(horizontal="right")
+    ws1.cell(row=row_idx1, column=11, value=f"{balance_amount_sum:.2f}").alignment = Alignment(horizontal="right")
     
-    ws.merge_cells(start_row=summary_row, start_column=1, end_row=summary_row, end_column=6)
-    total_verified_proofs = sum(1 for tx in transactions if tx.get("payment_proof_url"))
-    total_not_verified_proofs = len(transactions) - total_verified_proofs
-    ws.cell(row=summary_row, column=1, value="TOTALS").font = summary_font
-    ws.cell(row=summary_row, column=1).alignment = Alignment(horizontal="right")
-    ws.cell(row=summary_row, column=7, value=round(total_revenue - total_gst_sum, 2)).font = summary_font
-    ws.cell(row=summary_row, column=8, value=round(total_gst_sum, 2)).font = summary_font
-    ws.cell(row=summary_row, column=9, value=round(total_revenue, 2)).font = summary_font
-    ws.cell(row=summary_row, column=10, value=round(total_paid, 2)).font = summary_font
-    ws.cell(row=summary_row, column=11, value=round(total_revenue - total_paid, 2)).font = summary_font
-    ws.cell(row=summary_row, column=13, value=f"{total_verified_proofs} Verified / {total_not_verified_proofs} Pending").font = summary_font
+    for c in range(1, 13):
+        cell = ws1.cell(row=row_idx1, column=c)
+        cell.font = total_font
+        cell.fill = total_fill
+        cell.border = thin_border
+        
+    # ----------------------------------------------------
+    # SHEET 2: Sale Items (Line-item details breakdown)
+    # ----------------------------------------------------
+    ws2 = wb.create_sheet(title="Sale Items")
     
-    for c in range(1, 14):
-        ws.cell(row=summary_row, column=c).fill = summary_fill
-        ws.cell(row=summary_row, column=c).border = thin_border
+    # Row 0 (openpyxl Row 1): Username metadata
+    ws2.cell(row=1, column=1, value="Username").font = Font(name="Calibri", size=10, bold=True)
+    ws2.cell(row=1, column=2, value=current_user["username"]).font = Font(name="Calibri", size=10)
     
-    # Column widths
-    col_widths = {"A": 6, "B": 12, "C": 20, "D": 15, "E": 22, "F": 30, "G": 14, "H": 12, "I": 14, "J": 14, "K": 14, "L": 12, "M": 16}
-    for col_letter, w in col_widths.items():
-        ws.column_dimensions[col_letter].width = w
+    # Row 1 (openpyxl Row 2): Column Headers
+    headers2 = ['Date', 'Party Name', 'Invoice No.', 'Item Name', 'Item code', 'HSN/SAC', 'Quantity', 'Unit', 'Price/Unit', 'Discount', 'GST', 'Amount']
+    for col_idx, header in enumerate(headers2, 1):
+        cell = ws2.cell(row=2, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+        
+    # Data rows start at Row 3
+    row_idx2 = 3
     
+    for tx in transactions:
+        tx_date = format_tx_date(tx)
+        party_name = tx.get("name", "")
+        invoice_no = get_invoice_number_formatted(tx)
+        
+        items = tx.get("invoice_items", [])
+        if not items:
+            # Fallback to single dummy item
+            p_name = tx.get("product", "")
+            is_serv = False
+            lower_p_name = p_name.lower()
+            if any(x in lower_p_name for x in ["healing", "session", "class", "course", "reading", "appointment"]):
+                is_serv = True
+            unit = "Nos" if is_serv else "1"
+            
+            items = [{
+                "name": p_name,
+                "qty": 1,
+                "price": float(tx.get("amount", 0.0)),
+                "gst_rate": float(tx.get("gst_rate", 0.0)),
+                "gst_amount": float(tx.get("gst_total", 0.0)),
+                "total": float(tx.get("total_amount", 0.0)),
+                "hsn": tx.get("hsn_code", "9983"),
+                "unit": unit
+            }]
+            
+        for item in items:
+            item_name = item.get("name", "")
+            hsn = item.get("hsn", item.get("hsn_code", ""))
+            qty = float(item.get("qty", 1.0))
+            price_unit = float(item.get("price", 0.0))
+            gst_rate = float(item.get("gst_rate", 0.0))
+            gst_amt = float(item.get("gst_amount", 0.0))
+            amount = float(item.get("total", 0.0))
+            
+            # Determine unit
+            item_unit = item.get("unit")
+            if not item_unit:
+                is_serv = service_map.get(item_name.lower().strip(), False)
+                if not is_serv:
+                    lower_item_name = item_name.lower()
+                    if any(x in lower_item_name for x in ["healing", "session", "class", "course", "reading", "appointment"]):
+                        is_serv = True
+                item_unit = "Nos" if is_serv else "1"
+                
+            # Discount format: value(percentage%) e.g. 0.00(0.0%)
+            disc_val = float(item.get("discount_amount", 0.0))
+            disc_pct = float(item.get("discount_rate", 0.0))
+            discount_str = f"{disc_val:.2f}({disc_pct:.1f}%)"
+            
+            # GST format: value(percentage%) e.g. 5.55(5.0%)
+            gst_str = f"{gst_amt:.2f}({gst_rate:.1f}%)"
+            
+            ws2.cell(row=row_idx2, column=1, value=tx_date).alignment = Alignment(horizontal="center")
+            ws2.cell(row=row_idx2, column=2, value=party_name).alignment = Alignment(horizontal="left")
+            ws2.cell(row=row_idx2, column=3, value=invoice_no).alignment = Alignment(horizontal="center")
+            ws2.cell(row=row_idx2, column=4, value=item_name).alignment = Alignment(horizontal="left")
+            ws2.cell(row=row_idx2, column=5, value=item.get("code", "")) # Item code
+            ws2.cell(row=row_idx2, column=6, value=hsn).alignment = Alignment(horizontal="center")
+            ws2.cell(row=row_idx2, column=7, value=f"{qty:.1f}").alignment = Alignment(horizontal="right")
+            ws2.cell(row=row_idx2, column=8, value=str(item_unit)).alignment = Alignment(horizontal="center")
+            ws2.cell(row=row_idx2, column=9, value=f"{price_unit:.2f}").alignment = Alignment(horizontal="right")
+            ws2.cell(row=row_idx2, column=10, value=discount_str).alignment = Alignment(horizontal="right")
+            ws2.cell(row=row_idx2, column=11, value=gst_str).alignment = Alignment(horizontal="right")
+            ws2.cell(row=row_idx2, column=12, value=f"{amount:.2f}").alignment = Alignment(horizontal="right")
+            
+            for c in range(1, 13):
+                cell = ws2.cell(row=row_idx2, column=c)
+                cell.font = data_font
+                cell.border = thin_border
+                
+            row_idx2 += 1
+            
+    # Auto-fit column widths
+    for ws in [ws1, ws2]:
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                if cell.value is not None:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+            
     # Save to buffer
     buffer = io.BytesIO()
     wb.save(buffer)
