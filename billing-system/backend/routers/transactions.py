@@ -891,11 +891,23 @@ async def bulk_export(payload: dict, db=Depends(get_db)):
 async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
     """Export analytics report as Excel matching the template format with two sheets: 'Sale Report' and 'Sale Items'."""
     from openpyxl.utils import get_column_letter
+    from fastapi.responses import JSONResponse
     
     start_date = payload.get("start_date")  # "YYYY-MM-DD"
     end_date = payload.get("end_date")      # "YYYY-MM-DD"
     products = payload.get("products", [])   # list of product name strings
     
+    # Defensive backend date validation
+    if start_date and end_date:
+        if start_date > end_date:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "message": "End date cannot be earlier than start date."
+                }
+            )
+        
     query = {}
     
     # Date filter — parse date field (stored as DD/MM/YY string) via timestamp
@@ -927,6 +939,15 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     
     cursor = db.transactions.find(query).sort([("timestamp", -1)])
     transactions = await cursor.to_list(length=100000)
+    
+    if not transactions or len(transactions) == 0:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "message": "No transactions found for the selected filters."
+            }
+        )
     
     # Fetch all products to determine if an item is a service for Sheet 2 Unit column
     products_cursor = db.products.find({}, {"name": 1, "is_service": 1})
@@ -1194,14 +1215,243 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
                     max_len = max(max_len, len(str(cell.value)))
             ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
             
+    # Reconstruct filename matching frontend
+    filter_mode = payload.get("filter_mode", "date")
+    if (filter_mode == 'date' or filter_mode == 'both') and start_date and end_date:
+        def format_d(d_str):
+            parts = d_str.split('-')
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+        filename = f"Sale_Report_{format_d(start_date)}_to_{format_d(end_date)}.xlsx"
+    else:
+        today = datetime.now()
+        filename = f"Sale_Report_{today.strftime('%d-%m-%Y')}.xlsx"
+
     # Save to buffer
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     
-    filename = f"Zeal_Analytics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    # Write to export_audit_logs collection
+    from datetime import timezone
+    item_count_calc = 0
+    for tx in transactions:
+        tx_items = tx.get("invoice_items", [])
+        if not tx_items:
+            item_count_calc += 1
+        else:
+            item_count_calc += len(tx_items)
+            
+    audit_log = {
+        "exported_by": current_user.get("username", "admin"),
+        "user_id": str(current_user.get("_id", "unknown")),
+        "exported_at": datetime.now(timezone.utc),
+        "filter_mode": filter_mode,
+        "date_range": {
+            "start": start_date or "",
+            "end": end_date or ""
+        },
+        "selected_products": products,
+        "transaction_count": len(transactions),
+        "item_count": item_count_calc,
+        "total_sales": round(total_amount_sum, 2),
+        "filename": filename,
+        "status": "SUCCESS"
+    }
+    await db.export_audit_logs.insert_one(audit_log)
+    
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+@router.post("/export-preview")
+async def export_preview(payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
+    """Generate live preview data of transactions matching the current filters."""
+    from fastapi.responses import JSONResponse
+    
+    start_date = payload.get("start_date")  # "YYYY-MM-DD"
+    end_date = payload.get("end_date")      # "YYYY-MM-DD"
+    products = payload.get("products", [])   # list of product name strings
+    
+    # Defensive backend date validation
+    if start_date and end_date:
+        if start_date > end_date:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "message": "End date cannot be earlier than start date."
+                }
+            )
+        
+    query = {}
+    
+    # Date filter — parse date field (stored as DD/MM/YY string) via timestamp
+    if start_date or end_date:
+        date_filter = {}
+        if start_date:
+            try:
+                date_filter["$gte"] = datetime.strptime(start_date, "%Y-%m-%d")
+            except ValueError:
+                pass
+        if end_date:
+            try:
+                # End of day
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+                date_filter["$lte"] = end_dt
+            except ValueError:
+                pass
+        if date_filter:
+            query["timestamp"] = date_filter
+    
+    # Product filter — match any product in the items string
+    if products and len(products) > 0:
+        product_patterns = [{"product": {"$regex": re.escape(p), "$options": "i"}} for p in products]
+        if "$or" in query:
+            existing_or = query.pop("$or")
+            query["$and"] = [{"$or": existing_or}, {"$or": product_patterns}]
+        else:
+            query["$or"] = product_patterns
+
+    # Retrieve only the necessary fields for lightweight execution
+    cursor = db.transactions.find(
+        query, 
+        {
+            "total_amount": 1, 
+            "paid_amount": 1, 
+            "balance": 1, 
+            "invoice_items": 1
+        }
+    )
+    transactions = await cursor.to_list(length=100000)
+    
+    transaction_count = len(transactions)
+    item_count = 0
+    total_sales = 0.0
+    received_amount = 0.0
+    balance_amount = 0.0
+    
+    for tx in transactions:
+        tot_amt = float(tx.get("total_amount", 0.0))
+        rec_amt = float(tx.get("paid_amount", tx.get("total_amount", 0.0)) if tx.get("paid_amount") is not None else tx.get("total_amount", 0.0))
+        bal_amt = float(tx.get("balance", 0.0) if tx.get("balance") is not None else 0.0)
+        
+        total_sales += tot_amt
+        received_amount += rec_amt
+        balance_amount += bal_amt
+        
+        items = tx.get("invoice_items", [])
+        if not items:
+            item_count += 1
+        else:
+            item_count += len(items)
+            
+    return {
+        "success": True,
+        "transaction_count": transaction_count,
+        "item_count": item_count,
+        "total_sales": round(total_sales, 2),
+        "received_amount": round(received_amount, 2),
+        "balance_amount": round(balance_amount, 2)
+    }
+
+@router.post("/export-suggestions")
+async def export_suggestions(payload: dict, db=Depends(get_db), current_user=Depends(get_current_user)):
+    """Generate smart recovery suggestions when export filters return 0 results."""
+    from datetime import datetime, timedelta
+    import calendar
+
+    start_date = payload.get("start_date")
+    end_date = payload.get("end_date")
+    products = payload.get("products", [])
+    filter_mode = payload.get("filter_mode", "date")
+
+    # 1. Find nearest transaction date
+    nearest_date_str = None
+    start_dt = None
+    end_dt = None
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+        except ValueError:
+            pass
+
+    # Query nearest transaction
+    nearest_tx = None
+    if start_dt and end_dt:
+        # Search before start_dt
+        prev_txs = await db.transactions.find({"timestamp": {"$lt": start_dt}}, {"timestamp": 1}).sort([("timestamp", -1)]).to_list(length=1)
+        # Search after end_dt
+        next_txs = await db.transactions.find({"timestamp": {"$gt": end_dt}}, {"timestamp": 1}).sort([("timestamp", 1)]).to_list(length=1)
+        
+        if prev_txs and next_txs:
+            prev_diff = start_dt - prev_txs[0]["timestamp"]
+            next_diff = next_txs[0]["timestamp"] - end_dt
+            nearest_tx = prev_txs[0] if prev_diff < next_diff else next_txs[0]
+        elif prev_txs:
+            nearest_tx = prev_txs[0]
+        elif next_txs:
+            nearest_tx = next_txs[0]
+            
+    if not nearest_tx:
+        # Fallback to absolute latest transaction
+        latest_txs = await db.transactions.find({}, {"timestamp": 1}).sort([("timestamp", -1)]).to_list(length=1)
+        if latest_txs:
+            nearest_tx = latest_txs[0]
+
+    if nearest_tx and "timestamp" in nearest_tx:
+        nearest_date_str = nearest_tx["timestamp"].strftime("%Y-%m-%d")
+
+    # 2. Recommended date range (month containing nearest date)
+    rec_range = None
+    if nearest_date_str:
+        nearest_dt = datetime.strptime(nearest_date_str, "%Y-%m-%d")
+        year = nearest_dt.year
+        month = nearest_dt.month
+        last_day = calendar.monthrange(year, month)[1]
+        rec_range = {
+            "start": f"{year}-{month:02d}-01",
+            "end": f"{year}-{month:02d}-{last_day:02d}"
+        }
+
+    # 3. Available financial years
+    first_txs = await db.transactions.find({}, {"timestamp": 1}).sort([("timestamp", 1)]).to_list(length=1)
+    last_txs = await db.transactions.find({}, {"timestamp": 1}).sort([("timestamp", -1)]).to_list(length=1)
+    
+    financial_years = []
+    if first_txs and last_txs:
+        first_year = first_txs[0]["timestamp"].year
+        last_year = last_txs[0]["timestamp"].year
+        
+        # Indian Financial Year starts April 1st
+        # So check years from first_year - 1 to last_year + 1
+        for y in range(first_year - 1, last_year + 2):
+            # FY starts April 1st of y and ends March 31st of y + 1
+            fy_label = f"FY {y - 2000:02d}-{y - 2000 + 1:02d}"
+            # Check if there are transactions in this range
+            fy_start = datetime(y, 4, 1)
+            fy_end = datetime(y + 1, 3, 31, 23, 59, 59)
+            tx_in_fy = await db.transactions.find({"timestamp": {"$gte": fy_start, "$lte": fy_end}}, {"_id": 1}).to_list(length=1)
+            if tx_in_fy:
+                financial_years.append(fy_label)
+
+    # 4. Available products (top active or all)
+    available_products = []
+    products_cursor = db.products.find({}, {"name": 1})
+    products_list = await products_cursor.to_list(length=100)
+    available_products = [p["name"] for p in products_list if "name" in p]
+
+    return {
+        "success": True,
+        "nearest_transaction_date": nearest_date_str,
+        "available_financial_years": financial_years,
+        "recommended_date_range": rec_range,
+        "available_products": available_products
+    }
