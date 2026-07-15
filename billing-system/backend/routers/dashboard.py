@@ -100,6 +100,107 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
     result_cursor = db.transactions.aggregate(pipeline)
     result = await result_cursor.to_list(length=1)
     stats = result[0] if result else {"total_revenue": 0, "total_collected": 0, "total_balance": 0, "count": 0}
+    
+    # Safe match query for year-month-day-week projection (excluding null/missing timestamps)
+    breakdown_match = dict(query)
+    breakdown_match["timestamp"] = {"$ne": None}
+    
+    breakdown_pipeline = [
+        {"$match": breakdown_match},
+        {"$project": {
+            "year": {"$year": "$timestamp"},
+            "month": {"$month": "$timestamp"},
+            "day": {"$dayOfMonth": "$timestamp"},
+            "week": {"$isoWeek": "$timestamp"},
+            "total_amount": 1
+        }},
+        {"$group": {
+            "_id": {
+                "year": "$year", 
+                "month": "$month", 
+                "day": "$day",
+                "week": "$week"
+            },
+            "revenue": {"$sum": "$total_amount"}
+        }}
+    ]
+    breakdown_cursor = db.transactions.aggregate(breakdown_pipeline)
+    breakdown_res = await breakdown_cursor.to_list(length=1000)
+
+    # Process Month-wise, Financial Year-wise, Week-wise, and Day-wise revenue
+    MONTH_NAMES = {
+        1: "January", 2: "February", 3: "March", 4: "April",
+        5: "May", 6: "June", 7: "July", 8: "August",
+        9: "September", 10: "October", 11: "November", 12: "December"
+    }
+    month_revenue_map = {m: 0.0 for m in range(1, 13)}
+    fy_revenue_map = {}
+    week_revenue_map = {}
+    day_revenue_map = {}
+
+    for item in breakdown_res:
+        g = item["_id"]
+        y = g.get("year")
+        m = g.get("month")
+        d = g.get("day")
+        w = g.get("week")
+        rev = item.get("revenue", 0.0)
+        
+        if y and m and d:
+            month_revenue_map[m] += rev
+            
+            # Existing financial year logic:
+            if m >= 4:
+                fy = f"{y % 100}-{(y + 1) % 100}"
+            else:
+                fy = f"{(y - 1) % 100}-{y % 100}"
+            fy_revenue_map[fy] = fy_revenue_map.get(fy, 0.0) + rev
+            
+            # Week-wise
+            week_key = (y, w) if w is not None else (y, 0)
+            week_revenue_map[week_key] = week_revenue_map.get(week_key, 0.0) + rev
+            
+            # Day-wise
+            day_key = (y, m, d)
+            day_revenue_map[day_key] = day_revenue_map.get(day_key, 0.0) + rev
+
+    # Indian Financial Year month order: April to March
+    fy_month_order = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+    month_wise = []
+    for m in fy_month_order:
+        month_wise.append({
+            "month": MONTH_NAMES[m],
+            "revenue": month_revenue_map[m]
+        })
+
+    fy_wise = []
+    sorted_fys = sorted(list(fy_revenue_map.keys()))
+    for fy in sorted_fys:
+        fy_wise.append({
+            "fy": f"FY {fy}",
+            "revenue": fy_revenue_map[fy]
+        })
+
+    week_wise = []
+    sorted_weeks = sorted(list(week_revenue_map.keys()), reverse=True)
+    for wk in sorted_weeks:
+        wy, ww = wk
+        week_wise.append({
+            "week": f"Week {ww}, {wy}",
+            "revenue": week_revenue_map[wk]
+        })
+
+    day_wise = []
+    sorted_days = sorted(list(day_revenue_map.keys()), reverse=True)
+    for dy in sorted_days:
+        dy_y, dy_m, dy_d = dy
+        month_abbr = MONTH_NAMES[dy_m][:3]
+        date_str = f"{dy_d:02d} {month_abbr} {dy_y}"
+        day_wise.append({
+            "date": date_str,
+            "revenue": day_revenue_map[dy]
+        })
+
     return {
         "total_revenue": stats["total_revenue"], 
         "total_collected": stats["total_collected"],
@@ -108,8 +209,13 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
         "pending_sync": await db.transactions.count_documents({"status": "Pending"}), 
         "system_health": 99.9, 
         "verified_transactions": stats["count"], 
-        "active_licenses": stats["count"] // 5 + 10
+        "active_licenses": stats["count"] // 5 + 10,
+        "month_wise_revenue": month_wise,
+        "fy_wise_revenue": fy_wise,
+        "week_wise_revenue": week_wise,
+        "day_wise_revenue": day_wise
     }
+
 
 @router.get("/history")
 async def get_dashboard_history(

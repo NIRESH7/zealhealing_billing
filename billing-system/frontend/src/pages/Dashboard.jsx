@@ -103,6 +103,8 @@ export default function Dashboard() {
   const [topCustomers, setTopCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
+  const [showRevenueBreakdown, setShowRevenueBreakdown] = useState(false);
+  const [breakdownView, setBreakdownView] = useState('monthly');
 
   const [filters, setFilters] = useState({ products: [], customers: [], years: [], max_visits: 0 });
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -153,9 +155,16 @@ export default function Dashboard() {
   }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, fetchData, loading]);
 
   const kpiCards = [
-    { label: 'Revenue', value: `₹${stats?.total_revenue?.toLocaleString() || '0'}`, icon: TrendingUp, color: 'text-emerald-600' },
-    { label: 'Collected', value: `₹${stats?.total_collected?.toLocaleString() || '0'}`, icon: CheckCircle, color: 'text-emerald-600' },
-    { label: 'Balance', value: `₹${stats?.total_balance?.toLocaleString() || '0'}`, icon: Activity, color: 'text-emerald-600' },
+    { 
+      label: 'Revenue', 
+      value: `₹${stats?.total_revenue?.toLocaleString('en-IN') || '0'}`, 
+      icon: TrendingUp, 
+      color: 'text-emerald-600',
+      action: () => setShowRevenueBreakdown(!showRevenueBreakdown),
+      actionLabel: showRevenueBreakdown ? 'Hide Details' : 'View Details'
+    },
+    { label: 'Collected', value: `₹${stats?.total_collected?.toLocaleString('en-IN') || '0'}`, icon: CheckCircle, color: 'text-emerald-600' },
+    { label: 'Balance', value: `₹${stats?.total_balance?.toLocaleString('en-IN') || '0'}`, icon: Activity, color: 'text-emerald-600' },
     { label: 'Total Bills', value: stats?.verified_transactions || '0', icon: Layout, color: 'text-emerald-600' },
   ];
 
@@ -193,16 +202,132 @@ export default function Dashboard() {
       <div className="bg-white border border-slate-100 rounded-2xl mb-8 overflow-hidden shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] ring-1 ring-slate-900/5 transition-all">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
           {kpiCards.map((card, i) => (
-            <div key={i} className="p-8 transition-all hover:bg-emerald-50/20 group">
-              <div className="flex items-center gap-2 mb-4">
-                <card.icon className={`w-3.5 h-3.5 ${card.color} group-hover:scale-110 transition-transform`} strokeWidth={2.5} />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{card.label}</span>
+            <div 
+              key={i} 
+              className={`p-8 transition-all hover:bg-emerald-50/20 group relative ${card.action ? 'cursor-pointer select-none' : ''}`}
+              onClick={card.action}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <card.icon className={`w-3.5 h-3.5 ${card.color} group-hover:scale-110 transition-transform`} strokeWidth={2.5} />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{card.label}</span>
+                </div>
+                {card.actionLabel && (
+                  <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                    {card.actionLabel}
+                  </span>
+                )}
               </div>
               <p className="text-2xl font-black text-slate-900 tracking-tight">{card.value}</p>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Revenue Analytics Breakdown Drawer */}
+      {showRevenueBreakdown && (
+        <div className="bg-white border border-slate-100 rounded-2xl mb-8 p-8 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] ring-1 ring-slate-900/5 animate-in slide-in-from-top duration-300">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 pb-4 border-b border-slate-100">
+            <div>
+              <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Revenue Analytics Breakdown</h2>
+              <p className="text-[10px] text-slate-400 font-bold italic">
+                {breakdownView === 'monthly' && 'Detailed month-wise and financial year-wise distribution of verified sales'}
+                {breakdownView === 'weekly' && 'Detailed week-wise distribution of verified sales'}
+                {breakdownView === 'daily' && 'Detailed date-wise distribution of verified sales'}
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex bg-slate-50 p-1 rounded-lg">
+                {['monthly', 'weekly', 'daily'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setBreakdownView(t)}
+                    className={`px-3 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-widest ${breakdownView === t ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <button 
+                onClick={() => setShowRevenueBreakdown(false)}
+                className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest border-l border-slate-200 pl-4 h-6"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          
+          {breakdownView === 'monthly' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Month-wise Revenue */}
+              <div>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Month-wise Revenue</h3>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {stats?.month_wise_revenue?.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-2.5 px-3.5 hover:bg-slate-50 rounded-lg transition-colors">
+                      <span className="text-[11px] font-bold text-slate-600">{item.month}</span>
+                      <span className="text-[12px] font-black text-slate-900">₹{item.revenue.toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                  {(!stats?.month_wise_revenue || stats.month_wise_revenue.length === 0) && (
+                    <p className="text-[10px] font-bold text-slate-400 italic text-center py-4">No monthly records found</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial Year-wise Revenue */}
+              <div>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Financial Year-wise Revenue</h3>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {stats?.fy_wise_revenue?.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-2.5 px-3.5 hover:bg-slate-50 rounded-lg transition-colors">
+                      <span className="text-[11px] font-bold text-slate-600">{item.fy}</span>
+                      <span className="text-[12px] font-black text-slate-900">₹{item.revenue.toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                  {(!stats?.fy_wise_revenue || stats.fy_wise_revenue.length === 0) && (
+                    <p className="text-[10px] font-bold text-slate-400 italic text-center py-4">No financial year records found</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {breakdownView === 'weekly' && (
+            <div className="w-full">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Week-wise Revenue</h3>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                {stats?.week_wise_revenue?.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-2.5 px-3.5 hover:bg-slate-50 rounded-lg transition-colors">
+                    <span className="text-[11px] font-bold text-slate-600">{item.week}</span>
+                    <span className="text-[12px] font-black text-slate-900">₹{item.revenue.toLocaleString('en-IN')}</span>
+                  </div>
+                ))}
+                {(!stats?.week_wise_revenue || stats.week_wise_revenue.length === 0) && (
+                  <p className="text-[10px] font-bold text-slate-400 italic text-center py-4">No weekly records found</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {breakdownView === 'daily' && (
+            <div className="w-full">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Date-wise Revenue</h3>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                {stats?.day_wise_revenue?.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-2.5 px-3.5 hover:bg-slate-50 rounded-lg transition-colors">
+                    <span className="text-[11px] font-bold text-slate-600">{item.date}</span>
+                    <span className="text-[12px] font-black text-slate-900">₹{item.revenue.toLocaleString('en-IN')}</span>
+                  </div>
+                ))}
+                {(!stats?.day_wise_revenue || stats.day_wise_revenue.length === 0) && (
+                  <p className="text-[10px] font-bold text-slate-400 italic text-center py-4">No daily records found</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 

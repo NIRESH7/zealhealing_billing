@@ -21,6 +21,31 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from zipfile import ZipFile
 import traceback
+from typing import Optional
+
+def parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
+    if not date_str or str(date_str).strip() in ["", "-", "None"]:
+        return None
+    try:
+        if re.match(r'^\d{4}-\d{2}-\d{2}', date_str):
+            return datetime.strptime(date_str[:10], "%Y-%m-%d")
+        parts = re.split(r'[/-]', date_str)
+        if len(parts) == 3:
+            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+            if y < 100:
+                y += 2000
+            return datetime(y, m, d)
+    except Exception:
+        pass
+    return None
+
+def safe_float(val, default=0.0):
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except Exception:
+        return default
 
 router = APIRouter()
 
@@ -81,7 +106,8 @@ async def create_transaction_manual(transaction: TransactionCreate, db=Depends(g
         pass
     
     tx_dict["status"] = "Pending"
-    tx_dict["timestamp"] = datetime.utcnow()
+    parsed_dt = parse_date_string(tx_dict.get("date"))
+    tx_dict["timestamp"] = parsed_dt if parsed_dt else datetime.utcnow()
     tx_dict["added_by"] = current_user["username"]
     tx_dict["invoice_number"] = await get_next_sequence(db, "invoice_number")
     
@@ -447,7 +473,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
                     "paid_amount": paid_val,
                     "balance": balance,
                     "status": "Verified",
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": parse_date_string(current_date) or datetime.utcnow(),
                     "invoice_number": invoice_num,
                     "added_by": current_user["username"],
                     "batch_id": batch_id
@@ -1058,9 +1084,9 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
     balance_amount_sum = 0.0
     
     for tx in transactions:
-        tot_amt = float(tx.get("total_amount", 0.0))
-        rec_amt = float(tx.get("paid_amount", tx.get("total_amount", 0.0)) if tx.get("paid_amount") is not None else tx.get("total_amount", 0.0))
-        bal_amt = float(tx.get("balance", 0.0) if tx.get("balance") is not None else 0.0)
+        tot_amt = safe_float(tx.get("total_amount"))
+        rec_amt = safe_float(tx.get("paid_amount")) if tx.get("paid_amount") is not None else safe_float(tx.get("total_amount"))
+        bal_amt = safe_float(tx.get("balance")) if tx.get("balance") is not None else 0.0
         
         ws1.cell(row=row_idx1, column=1, value=format_tx_date(tx)).alignment = Alignment(horizontal="center")
         ws1.cell(row=row_idx1, column=2, value=tx.get("name", "")).alignment = Alignment(horizontal="left")
@@ -1150,10 +1176,10 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
             items = [{
                 "name": p_name,
                 "qty": 1,
-                "price": float(tx.get("amount", 0.0)),
-                "gst_rate": float(tx.get("gst_rate", 0.0)),
-                "gst_amount": float(tx.get("gst_total", 0.0)),
-                "total": float(tx.get("total_amount", 0.0)),
+                "price": safe_float(tx.get("amount")),
+                "gst_rate": safe_float(tx.get("gst_rate")),
+                "gst_amount": safe_float(tx.get("gst_total")),
+                "total": safe_float(tx.get("total_amount")),
                 "hsn": tx.get("hsn_code", "9983"),
                 "unit": unit
             }]
@@ -1161,11 +1187,11 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
         for item in items:
             item_name = item.get("name", "")
             hsn = item.get("hsn", item.get("hsn_code", ""))
-            qty = float(item.get("qty", 1.0))
-            price_unit = float(item.get("price", 0.0))
-            gst_rate = float(item.get("gst_rate", 0.0))
-            gst_amt = float(item.get("gst_amount", 0.0))
-            amount = float(item.get("total", 0.0))
+            qty = safe_float(item.get("qty"), 1.0)
+            price_unit = safe_float(item.get("price"))
+            gst_rate = safe_float(item.get("gst_rate"))
+            gst_amt = safe_float(item.get("gst_amount"))
+            amount = safe_float(item.get("total"))
             
             # Determine unit
             item_unit = item.get("unit")
@@ -1178,8 +1204,8 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
                 item_unit = "Nos" if is_serv else "1"
                 
             # Discount format: value(percentage%) e.g. 0.00(0.0%)
-            disc_val = float(item.get("discount_amount", 0.0))
-            disc_pct = float(item.get("discount_rate", 0.0))
+            disc_val = safe_float(item.get("discount_amount"))
+            disc_pct = safe_float(item.get("discount_rate"))
             discount_str = f"{disc_val:.2f}({disc_pct:.1f}%)"
             
             # GST format: value(percentage%) e.g. 5.55(5.0%)
