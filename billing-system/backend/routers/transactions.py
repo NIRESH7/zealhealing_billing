@@ -500,7 +500,7 @@ async def upload_transactions(file: UploadFile = File(...), db=Depends(get_db), 
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/")
-async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, search: str = None, latest_batch_only: bool = False, year: str = None, db=Depends(get_db), current_user=Depends(get_current_user)):
+async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, search: str = None, latest_batch_only: bool = False, year: str = None, sort_by: str = "date", sort_order: str = "desc", db=Depends(get_db), current_user=Depends(get_current_user)):
     query = {}
     if status and status != "All": query["status"] = status
     if search:
@@ -537,7 +537,17 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
                 query["timestamp"] = {"$gte": start_date, "$lt": end_date}
             except: pass
             
-    cursor = db.transactions.find(query).sort([("timestamp", -1)]).skip(skip).limit(limit)
+    # Determine sorting field and direction
+    sort_field = "timestamp"
+    if sort_by == "amount":
+        sort_field = "total_amount"
+    elif sort_by == "bill_no":
+        sort_field = "invoice_number"
+    elif sort_by == "customer":
+        sort_field = "name"
+        
+    direction = -1 if sort_order == "desc" else 1
+    cursor = db.transactions.find(query).sort([(sort_field, direction)]).skip(skip).limit(limit)
     transactions = await cursor.to_list(length=limit)
     
     serialized = []

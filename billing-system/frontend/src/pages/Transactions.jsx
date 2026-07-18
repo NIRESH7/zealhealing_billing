@@ -2312,6 +2312,8 @@ export default function Transactions() {
   const navigate = useNavigate();
   const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [page, setPage] = useState(0);
@@ -2331,6 +2333,30 @@ export default function Transactions() {
 
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState('All');
+  const [sortKey, setSortKey] = useState('date_desc');
+
+  const handleHeaderClick = (column) => {
+    let nextKey;
+    if (column === 'date') {
+      nextKey = sortKey === 'date_desc' ? 'date_asc' : 'date_desc';
+    } else if (column === 'bill') {
+      nextKey = sortKey === 'bill_desc' ? 'bill_asc' : 'bill_desc';
+    } else if (column === 'customer') {
+      nextKey = sortKey === 'customer_asc' ? 'customer_desc' : 'customer_asc';
+    } else if (column === 'amount') {
+      nextKey = sortKey === 'amount_desc' ? 'amount_asc' : 'amount_desc';
+    }
+    if (nextKey) {
+      setSortKey(nextKey);
+      setPage(0);
+    }
+  };
+
+  const renderSortIndicator = (column) => {
+    const [by, order] = sortKey.split('_');
+    if (by !== column) return null;
+    return order === 'desc' ? ' ↓' : ' ↑';
+  };
 
   const duplicateIds = React.useMemo(() => {
     const counts = {};
@@ -2343,15 +2369,45 @@ export default function Transactions() {
   }, [data.items]);
 
   const fetchTransactions = useCallback(async () => {
-    setLoading(true);
+    if (page === 0) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
+      const [by, order] = sortKey.split('_');
+      const backendSortBy = by === 'bill' ? 'bill_no' : by;
       const res = await api.get('/transactions/', {
-        params: { skip: page * pageSize, limit: pageSize, search, status, latest_batch_only: latestBatchOnly, year: selectedYear }
+        params: { 
+          skip: page * pageSize, 
+          limit: pageSize, 
+          search, 
+          status, 
+          latest_batch_only: latestBatchOnly, 
+          year: selectedYear,
+          sort_by: backendSortBy,
+          sort_order: order
+        }
       });
-      setData(res.data);
-    } catch { console.error("Fetch failed"); }
-    finally { setLoading(false); }
-  }, [page, pageSize, search, status, latestBatchOnly, selectedYear]);
+      
+      setData(prev => {
+        if (page === 0) {
+          return res.data;
+        } else {
+          return {
+            total: res.data.total,
+            items: [...prev.items, ...res.data.items]
+          };
+        }
+      });
+      setHasMore((page + 1) * pageSize < res.data.total);
+    } catch { 
+      console.error("Fetch failed"); 
+    } finally { 
+      setLoading(false); 
+      setLoadingMore(false);
+    }
+  }, [page, pageSize, search, status, latestBatchOnly, selectedYear, sortKey]);
 
   useEffect(() => {
     api.get('/dashboard/filters').then(res => {
@@ -2363,7 +2419,25 @@ export default function Transactions() {
 
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
-  const handleSearch = (e) => { e.preventDefault(); setPage(0); fetchTransactions(); };
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    if (scrollHeight - scrollTop - clientHeight < 50) {
+      if (!loading && !loadingMore && hasMore) {
+        setPage(p => p + 1);
+      }
+    }
+  };
+
+  const handleSearch = (e) => { 
+    e.preventDefault(); 
+    setPage(0); 
+  };
+  
+  const handleSearchChange = (val) => {
+    setSearch(val);
+    setPage(0);
+  };
+
   const toggleSelect = (id) => { setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); };
   const toggleSelectAll = () => {
     if (selected.length === data.items.length) { setSelected([]); setSelectAllAll(false); }
@@ -2513,7 +2587,7 @@ export default function Transactions() {
 
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setLatestBatchOnly(!latestBatchOnly)}
+              onClick={() => { setLatestBatchOnly(!latestBatchOnly); setPage(0); }}
               className={`px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-lg border transition-all ${latestBatchOnly ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-400 hover:text-emerald-600'}`}
             >
               Latest Upload
@@ -2589,7 +2663,7 @@ export default function Transactions() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
             <input 
               type="text" placeholder="Search by name, phone, transaction ID..." 
-              value={search} onChange={(e) => setSearch(e.target.value)}
+              value={search} onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-11 pr-12 py-2.5 text-[13px] font-black text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-400 outline-none transition-all placeholder:text-slate-400"
             />
             {search && (
@@ -2610,39 +2684,71 @@ export default function Transactions() {
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
           </div>
           <div className="relative w-full md:w-48">
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
+            <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
               <option value="All">All Transactions</option>
               <option value="Verified">Verified</option>
               <option value="Pending">Pending</option>
             </select>
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
           </div>
+          <div className="relative w-full md:w-48">
+            <select value={sortKey} onChange={(e) => { setSortKey(e.target.value); setPage(0); }} className="w-full px-4 py-2.5 text-[12px] font-black bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer hover:border-emerald-400 transition-all appearance-none text-slate-700">
+              <option value="date_desc">Date: Newest First</option>
+              <option value="date_asc">Date: Oldest First</option>
+              <option value="amount_desc">Amount: High to Low</option>
+              <option value="amount_asc">Amount: Low to High</option>
+              <option value="bill_desc">Bill No: High to Low</option>
+              <option value="bill_asc">Bill No: Low to High</option>
+              <option value="customer_asc">Customer: A to Z</option>
+              <option value="customer_desc">Customer: Z to A</option>
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
+          </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-          {loading ? (
+          {loading && page === 0 ? (
             <div className="flex flex-col justify-center items-center py-40 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin mb-3 text-emerald-500" />
               <span className="text-[11px] font-black tracking-widest uppercase">Loading Ledger...</span>
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div 
+                className="overflow-auto max-h-[calc(100vh-320px)] relative"
+                onScroll={handleScroll}
+              >
                 <table className="min-w-full border-collapse">
-                  <thead>
+                  <thead className="sticky top-0 bg-slate-50 z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="px-4 py-3 w-10 text-center border-r border-slate-200">
                         <button onClick={toggleSelectAll} className="p-1 text-emerald-600 hover:text-emerald-800 transition-all">
                           {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                         </button>
                       </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Date</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Bill No.</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">FY</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Customer</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Phone</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Transaction ID</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Total</th>
+                      <th onClick={() => handleHeaderClick('date')} className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 cursor-pointer hover:bg-slate-100/80 transition-all select-none">
+                        <span className="flex items-center gap-1">
+                          Date{renderSortIndicator('date')}
+                        </span>
+                      </th>
+                      <th onClick={() => handleHeaderClick('bill')} className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 cursor-pointer hover:bg-slate-100/80 transition-all select-none">
+                        <span className="flex items-center gap-1">
+                          Bill No.{renderSortIndicator('bill')}
+                        </span>
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 whitespace-nowrap select-none">FY</th>
+                      <th onClick={() => handleHeaderClick('customer')} className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 cursor-pointer hover:bg-slate-100/80 transition-all select-none">
+                        <span className="flex items-center gap-1">
+                          Customer{renderSortIndicator('customer')}
+                        </span>
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 select-none">Phone</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 select-none">Transaction ID</th>
+                      <th onClick={() => handleHeaderClick('amount')} className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200 cursor-pointer hover:bg-slate-100/80 transition-all select-none">
+                        <span className="flex items-center gap-1">
+                          Total{renderSortIndicator('amount')}
+                        </span>
+                      </th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Paid</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Balance</th>
                       <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider border-r border-slate-200">Items</th>
@@ -2734,13 +2840,20 @@ export default function Transactions() {
                 </table>
               </div>
 
-              <div className="px-10 py-8 flex items-center justify-between bg-slate-50/30 border-t border-slate-100">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{data.total} Signals Logged</span>
-                <div className="flex gap-2">
-                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-emerald-400 disabled:opacity-30 transition-all shadow-sm"><ChevronLeft className="w-5 h-5 text-emerald-600" /></button>
-                  <div className="px-5 h-10 flex items-center justify-center text-[12px] font-black text-slate-900 bg-white border border-slate-200 rounded-xl select-none shadow-sm">{page + 1}</div>
-                  <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= data.total} className="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:border-emerald-400 disabled:opacity-30 transition-all shadow-sm"><ChevronRight className="w-5 h-5 text-emerald-600" /></button>
-                </div>
+              <div className="px-10 py-4 flex items-center justify-between bg-slate-50 border-t border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <span>Showing {data.items.length} of {data.total} transactions</span>
+                <span className="flex items-center gap-1.5 text-emerald-600">
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Loading more...
+                    </>
+                  ) : hasMore ? (
+                    "Scroll down to load more"
+                  ) : (
+                    "All transactions loaded"
+                  )}
+                </span>
               </div>
             </>
           )}
