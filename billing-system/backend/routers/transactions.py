@@ -537,6 +537,19 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
                 query["timestamp"] = {"$gte": start_date, "$lt": end_date}
             except: pass
             
+    # Filter out future transactions by default (cap at current date/time + 1 day for timezone safety)
+    from datetime import timedelta
+    now_limit = datetime.utcnow() + timedelta(days=1)
+    if "timestamp" in query:
+        if isinstance(query["timestamp"], dict):
+            upper_bound = query["timestamp"].get("$lt") or query["timestamp"].get("$lte")
+            if upper_bound and upper_bound > now_limit:
+                query["timestamp"]["$lt"] = now_limit
+            elif not upper_bound:
+                query["timestamp"]["$lte"] = now_limit
+    else:
+        query["timestamp"] = {"$lte": now_limit}
+            
     # Determine sorting field and direction
     sort_field = "timestamp"
     if sort_by == "amount":
