@@ -5,8 +5,8 @@ import re
 import uuid
 import random
 import asyncio
-from typing import List
-from datetime import datetime
+from typing import List, Optional, Any
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
@@ -23,20 +23,51 @@ from zipfile import ZipFile
 import traceback
 from typing import Optional
 
-def parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
-    if not date_str or str(date_str).strip() in ["", "-", "None"]:
+def parse_date_string(date_val: Any) -> Optional[datetime]:
+    if date_val is None:
         return None
+    if isinstance(date_val, (datetime, date)):
+        dt = date_val if isinstance(date_val, datetime) else datetime.combine(date_val, datetime.min.time())
+        return dt.replace(hour=12, minute=0, second=0, microsecond=0)
+    
+    val_str = str(date_val).strip()
+    if not val_str or val_str.lower() in ["", "-", "none", "nan", "null"]:
+        return None
+
+    # Handle Excel serial number (e.g. 45424 or 45424.0)
     try:
-        if re.match(r'^\d{4}-\d{2}-\d{2}', date_str):
-            return datetime.strptime(date_str[:10], "%Y-%m-%d")
-        parts = re.split(r'[/-]', date_str)
-        if len(parts) == 3:
-            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+        num_val = float(val_str)
+        if 30000 < num_val < 60000:  # Valid excel date range ~1982 to ~2064
+            dt = datetime(1899, 12, 30) + timedelta(days=num_val)
+            return dt.replace(hour=12, minute=0, second=0, microsecond=0)
+    except ValueError:
+        pass
+
+    try:
+        # 1. YYYY-MM-DD or YYYY/MM/DD
+        m1 = re.match(r'^(\d{4})[/-](\d{1,2})[/-](\d{1,2})', val_str)
+        if m1:
+            y, m, d = int(m1.group(1)), int(m1.group(2)), int(m1.group(3))
+            return datetime(y, m, d, 12, 0, 0)
+
+        # 2. DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY or DD/MM/YY
+        m2 = re.match(r'^(\d{1,2})[/.-\s](\d{1,2})[/.-\s](\d{2,4})', val_str)
+        if m2:
+            d, m, y = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
             if y < 100:
                 y += 2000
-            return datetime(y, m, d)
+            return datetime(y, m, d, 12, 0, 0)
+
+        # 3. DD-Mon-YYYY (e.g. 12-May-2024 or 12 May 2024)
+        for fmt in ("%d-%b-%Y", "%d %b %Y", "%d-%B-%Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y"):
+            try:
+                dt = datetime.strptime(val_str[:15], fmt)
+                return dt.replace(hour=12, minute=0, second=0, microsecond=0)
+            except ValueError:
+                pass
     except Exception:
         pass
+
     return None
 
 def safe_float(val, default=0.0):
@@ -551,7 +582,7 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
         query["timestamp"] = {"$lte": now_limit}
             
     # Determine sorting field and direction
-    sort_field = "timestamp"
+    sort_field = "_id"
     if sort_by == "amount":
         sort_field = "total_amount"
     elif sort_by == "bill_no":

@@ -154,10 +154,13 @@ export default function Dashboard() {
     if (!loading) fetchData();
   }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, fetchData, loading]);
 
+  const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
+  const currentMonthRevenue = stats?.month_wise_revenue?.find(m => m.month === currentMonthName)?.revenue || 0;
+
   const kpiCards = [
     { 
-      label: 'Revenue', 
-      value: `₹${stats?.total_revenue?.toLocaleString('en-IN') || '0'}`, 
+      label: 'Revenue (This Month)', 
+      value: `₹${currentMonthRevenue.toLocaleString('en-IN')}`, 
       icon: TrendingUp, 
       color: 'text-emerald-600',
       action: () => setShowRevenueBreakdown(!showRevenueBreakdown),

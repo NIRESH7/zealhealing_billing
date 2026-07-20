@@ -108,10 +108,10 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
     breakdown_pipeline = [
         {"$match": breakdown_match},
         {"$project": {
-            "year": {"$year": "$timestamp"},
-            "month": {"$month": "$timestamp"},
-            "day": {"$dayOfMonth": "$timestamp"},
-            "week": {"$isoWeek": "$timestamp"},
+            "year": {"$year": {"date": "$timestamp", "timezone": "+05:30"}},
+            "month": {"$month": {"date": "$timestamp", "timezone": "+05:30"}},
+            "day": {"$dayOfMonth": {"date": "$timestamp", "timezone": "+05:30"}},
+            "week": {"$isoWeek": {"date": "$timestamp", "timezone": "+05:30"}},
             "total_amount": 1
         }},
         {"$group": {
