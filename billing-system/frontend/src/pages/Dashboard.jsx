@@ -155,7 +155,7 @@ export default function Dashboard() {
   }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, fetchData, loading]);
 
   const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
-  const currentMonthRevenue = stats?.month_wise_revenue?.find(m => m.month === currentMonthName)?.revenue || 0;
+  const currentMonthRevenue = stats?.month_wise_revenue?.find(m => m.month === currentMonthName || m.month.startsWith(currentMonthName))?.revenue || 0;
 
   const kpiCards = [
     { 

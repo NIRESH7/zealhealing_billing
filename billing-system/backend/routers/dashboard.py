@@ -133,7 +133,7 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
         5: "May", 6: "June", 7: "July", 8: "August",
         9: "September", 10: "October", 11: "November", 12: "December"
     }
-    month_revenue_map = {m: 0.0 for m in range(1, 13)}
+    month_revenue_map = {}
     fy_revenue_map = {}
     week_revenue_map = {}
     day_revenue_map = {}
@@ -147,7 +147,8 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
         rev = item.get("revenue", 0.0)
         
         if y and m and d:
-            month_revenue_map[m] += rev
+            ym_key = (y, m)
+            month_revenue_map[ym_key] = month_revenue_map.get(ym_key, 0.0) + rev
             
             # Existing financial year logic:
             if m >= 4:
@@ -164,13 +165,13 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
             day_key = (y, m, d)
             day_revenue_map[day_key] = day_revenue_map.get(day_key, 0.0) + rev
 
-    # Indian Financial Year month order: April to March
-    fy_month_order = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+    # Sort Month-wise revenue by Year (Descending) -> Month (Descending)
+    sorted_month_years = sorted(month_revenue_map.keys(), reverse=True)
     month_wise = []
-    for m in fy_month_order:
+    for (y, m) in sorted_month_years:
         month_wise.append({
-            "month": MONTH_NAMES[m],
-            "revenue": month_revenue_map[m]
+            "month": f"{MONTH_NAMES[m]} {y}",
+            "revenue": month_revenue_map[(y, m)]
         })
 
     fy_wise = []
