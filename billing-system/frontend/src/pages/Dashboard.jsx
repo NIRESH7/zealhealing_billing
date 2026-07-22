@@ -113,6 +113,13 @@ export default function Dashboard() {
   const [viewType, setViewType] = useState('monthly');
   const [minVisits, setMinVisits] = useState(0);
 
+  // Date Filtering States
+  const [dateFilterType, setDateFilterType] = useState('all'); // 'all', 'month', 'week', 'custom'
+  const [selectedMonth, setSelectedMonth] = useState(''); // e.g. "2026-07"
+  const [selectedWeek, setSelectedWeek] = useState(''); // Mon date string "YYYY-MM-DD"
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
   const fetchData = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
     else setChartLoading(true);
@@ -124,6 +131,28 @@ export default function Dashboard() {
       params.append('year', selectedYear);
       params.append('view_type', viewType);
       if (minVisits > 0) params.append('min_visits', minVisits);
+
+      // Compute and append start_date and end_date if active
+      let start_date = '';
+      let end_date = '';
+      if (dateFilterType === 'month' && selectedMonth) {
+        const [yearStr, monthStr] = selectedMonth.split('-');
+        start_date = `${yearStr}-${monthStr}-01`;
+        const lastDay = new Date(parseInt(yearStr), parseInt(monthStr), 0).getDate();
+        end_date = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+      } else if (dateFilterType === 'week' && selectedWeek) {
+        start_date = selectedWeek;
+        const start = new Date(selectedWeek);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end_date = end.toISOString().split('T')[0];
+      } else if (dateFilterType === 'custom') {
+        if (customStartDate) start_date = customStartDate;
+        if (customEndDate) end_date = customEndDate;
+      }
+
+      if (start_date) params.append('start_date', start_date);
+      if (end_date) params.append('end_date', end_date);
 
       const [statsRes, historyRes, activityRes, coursesRes, customerRes, filtersRes] = await Promise.all([
         api.get('/dashboard/stats', { params }),
@@ -144,7 +173,7 @@ export default function Dashboard() {
       setLoading(false);
       setChartLoading(false);
     }
-  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits]);
+  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, dateFilterType, selectedMonth, selectedWeek, customStartDate, customEndDate]);
 
   useEffect(() => {
     fetchData(true);
@@ -152,15 +181,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!loading) fetchData();
-  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, fetchData, loading]);
+  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, dateFilterType, selectedMonth, selectedWeek, customStartDate, customEndDate, fetchData, loading]);
 
   const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
   const currentMonthRevenue = stats?.month_wise_revenue?.find(m => m.month === currentMonthName || m.month.startsWith(currentMonthName))?.revenue || 0;
 
+  const isDateFiltered = dateFilterType !== 'all' || selectedYear !== 'All' || selectedProducts.length > 0 || selectedCustomers.length > 0;
+
   const kpiCards = [
     { 
-      label: 'Revenue (This Month)', 
-      value: `₹${currentMonthRevenue.toLocaleString('en-IN')}`, 
+      label: isDateFiltered ? 'Revenue (Filtered Period)' : 'Revenue (This Month)', 
+      value: `₹${(isDateFiltered ? (stats?.total_revenue || 0) : currentMonthRevenue).toLocaleString('en-IN')}`, 
       icon: TrendingUp, 
       color: 'text-emerald-600',
       action: () => setShowRevenueBreakdown(!showRevenueBreakdown),
@@ -170,6 +201,34 @@ export default function Dashboard() {
     { label: 'Balance', value: `₹${stats?.total_balance?.toLocaleString('en-IN') || '0'}`, icon: Activity, color: 'text-emerald-600' },
     { label: 'Total Bills', value: stats?.verified_transactions || '0', icon: Layout, color: 'text-emerald-600' },
   ];
+
+  const getWeeksOptions = () => {
+    const options = [];
+    const today = new Date();
+    
+    // Get current Monday
+    const currentDay = today.getDay();
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diffToMonday);
+    
+    for (let i = 0; i < 12; i++) {
+      const start = new Date(monday);
+      start.setDate(monday.getDate() - (i * 7));
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      
+      const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const year = start.getFullYear();
+      
+      const value = start.toISOString().split('T')[0];
+      const label = i === 0 ? `This Week (${startStr} - ${endStr})` : i === 1 ? `Last Week (${startStr} - ${endStr})` : `Week of ${startStr} - ${endStr}, ${year}`;
+      
+      options.push({ value, label });
+    }
+    return options;
+  };
 
   if (loading) return (
     <div className="h-[70vh] flex flex-col items-center justify-center text-slate-300">
@@ -182,22 +241,85 @@ export default function Dashboard() {
     <div className="max-w-[1240px] mx-auto px-6 py-4">
 
       {/* SaaS Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-6 border-b border-slate-100">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-8 pb-6 border-b border-slate-100">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 uppercase">Performance Intelligence</h1>
           <p className="text-[11px] font-bold text-slate-400">Comprehensive overview of revenue streams and sync signals.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <MultiSelect icon={Package} label="All Products" options={filters.products} value={selectedProducts} onChange={setSelectedProducts} />
           <MultiSelect icon={UserIcon} label="All Customers" options={filters.customers} value={selectedCustomers} onChange={setSelectedCustomers} />
+          
+          {dateFilterType === 'all' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
+              <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+              <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="text-[11px] font-bold text-slate-600 bg-transparent outline-none appearance-none pr-1 cursor-pointer">
+                <option value="All">All FY</option>
+                {filters.years.map(y => <option key={y} value={y}>{y.includes('-') ? `FY ${y}` : y}</option>)}
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
             <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="text-[11px] font-bold text-slate-600 bg-transparent outline-none appearance-none pr-1 cursor-pointer">
-              <option value="All">All FY</option>
-              {filters.years.map(y => <option key={y} value={y}>{y.includes('-') ? `FY ${y}` : y}</option>)}
+            <select 
+              value={dateFilterType} 
+              onChange={(e) => {
+                setDateFilterType(e.target.value);
+                setSelectedMonth('');
+                setSelectedWeek('');
+                setCustomStartDate('');
+                setCustomEndDate('');
+              }} 
+              className="text-[11px] font-bold text-slate-600 bg-transparent outline-none appearance-none pr-1 cursor-pointer"
+            >
+              <option value="all">All Time</option>
+              <option value="month">Month-wise</option>
+              <option value="week">Weekly</option>
+              <option value="custom">Custom Range</option>
             </select>
           </div>
+
+          {dateFilterType === 'month' && (
+            <input 
+              type="month" 
+              value={selectedMonth} 
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm outline-none focus:border-emerald-300 transition-all h-[32px] cursor-pointer"
+            />
+          )}
+
+          {dateFilterType === 'week' && (
+            <select 
+              value={selectedWeek} 
+              onChange={(e) => setSelectedWeek(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm outline-none focus:border-emerald-300 transition-all cursor-pointer"
+            >
+              <option value="">Select Week</option>
+              {getWeeksOptions().map(w => (
+                <option key={w.value} value={w.value}>{w.label}</option>
+              ))}
+            </select>
+          )}
+
+          {dateFilterType === 'custom' && (
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
+              <input 
+                type="date" 
+                value={customStartDate} 
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="px-1 py-0.5 text-[11px] font-bold text-slate-600 outline-none cursor-pointer"
+              />
+              <span className="text-[10px] font-bold text-slate-400">to</span>
+              <input 
+                type="date" 
+                value={customEndDate} 
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="px-1 py-0.5 text-[11px] font-bold text-slate-600 outline-none cursor-pointer"
+              />
+            </div>
+          )}
         </div>
       </div>
 

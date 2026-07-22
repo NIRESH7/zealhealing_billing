@@ -2317,7 +2317,7 @@ export default function Transactions() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [page, setPage] = useState(0);
-  const [pageSize] = useState(50);
+  const [pageSize] = useState(10);
   const [selected, setSelected] = useState([]);
   const [selectAllAll, setSelectAllAll] = useState(false);
   const [latestBatchOnly, setLatestBatchOnly] = useState(false);
@@ -2390,16 +2390,7 @@ export default function Transactions() {
         }
       });
       
-      setData(prev => {
-        if (page === 0) {
-          return res.data;
-        } else {
-          return {
-            total: res.data.total,
-            items: [...prev.items, ...res.data.items]
-          };
-        }
-      });
+      setData(res.data);
       setHasMore((page + 1) * pageSize < res.data.total);
     } catch { 
       console.error("Fetch failed"); 
@@ -2420,12 +2411,7 @@ export default function Transactions() {
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
   const handleScroll = (e) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
-    if (scrollHeight - scrollTop - clientHeight < 50) {
-      if (!loading && !loadingMore && hasMore) {
-        setPage(p => p + 1);
-      }
-    }
+    // Scroll pagination disabled in favor of Back/Next buttons
   };
 
   const handleSearch = (e) => { 
@@ -2841,19 +2827,35 @@ export default function Transactions() {
               </div>
 
               <div className="px-10 py-4 flex items-center justify-between bg-slate-50 border-t border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <span>Showing {data.items.length} of {data.total} transactions</span>
-                <span className="flex items-center gap-1.5 text-emerald-600">
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Loading more...
-                    </>
-                  ) : hasMore ? (
-                    "Scroll down to load more"
-                  ) : (
-                    "All transactions loaded"
-                  )}
-                </span>
+                <span>Showing {data.items.length > 0 ? (page * pageSize + 1) : 0} - {Math.min((page + 1) * pageSize, data.total)} of {data.total} transactions</span>
+                
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => {
+                      if (page > 0) setPage(p => p - 1);
+                    }}
+                    disabled={page === 0 || loading}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 disabled:opacity-40 disabled:hover:border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm text-slate-600 font-bold uppercase text-[10px]"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 text-emerald-500" />
+                    Back
+                  </button>
+
+                  <span className="text-[10px] font-bold text-slate-500">
+                    Page {page + 1} of {Math.ceil(data.total / pageSize) || 1}
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      if ((page + 1) * pageSize < data.total) setPage(p => p + 1);
+                    }}
+                    disabled={(page + 1) * pageSize >= data.total || loading}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 disabled:opacity-40 disabled:hover:border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm text-slate-600 font-bold uppercase text-[10px]"
+                  >
+                    Next
+                    <ChevronRight className="w-3.5 h-3.5 text-emerald-500" />
+                  </button>
+                </div>
               </div>
             </>
           )}

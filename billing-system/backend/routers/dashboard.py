@@ -7,7 +7,7 @@ from utils import get_transaction_fy
 
 router = APIRouter()
 
-def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], year: Optional[str]):
+def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], year: Optional[str], start_date: Optional[str] = None, end_date: Optional[str] = None):
     query = {"status": "Verified"}
     if products:
         clean_products = [p for p in products if p and p != "All" and p != "Products"]
@@ -15,7 +15,29 @@ def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], 
     if names:
         clean_names = [n for n in names if n and n != "All" and n != "Customers"]
         if clean_names: query["name"] = {"$in": clean_names}
-    if year and year != "All" and year != "Period":
+    
+    date_filter = {}
+    if start_date:
+        try:
+            date_filter["$gte"] = datetime.strptime(start_date, "%Y-%m-%d")
+        except:
+            try:
+                date_filter["$gte"] = datetime.fromisoformat(start_date)
+            except:
+                pass
+    if end_date:
+        try:
+            dt = datetime.strptime(end_date, "%Y-%m-%d")
+            date_filter["$lte"] = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except:
+            try:
+                date_filter["$lte"] = datetime.fromisoformat(end_date)
+            except:
+                pass
+
+    if date_filter:
+        query["timestamp"] = date_filter
+    elif year and year != "All" and year != "Period":
         if "-" in year:
             try:
                 parts = year.split("-")
@@ -25,17 +47,17 @@ def get_filter_query(products: Optional[List[str]], names: Optional[List[str]], 
                 start_year = 2000 + start_yy
                 end_year = 2000 + end_yy
                 # Financial year starts April 1st of start_year
-                start_date = datetime(start_year, 4, 1)
+                start_d = datetime(start_year, 4, 1)
                 # Financial year ends March 31st of end_year, so exclusive boundary is April 1st of end_year
-                end_date = datetime(end_year, 4, 1)
-                query["timestamp"] = {"$gte": start_date, "$lt": end_date}
+                end_d = datetime(end_year, 4, 1)
+                query["timestamp"] = {"$gte": start_d, "$lt": end_d}
             except: pass
         else:
             try:
                 year_int = int(year)
-                start_date = datetime(year_int, 1, 1)
-                end_date = datetime(year_int + 1, 1, 1)
-                query["timestamp"] = {"$gte": start_date, "$lt": end_date}
+                start_d = datetime(year_int, 1, 1)
+                end_d = datetime(year_int + 1, 1, 1)
+                query["timestamp"] = {"$gte": start_d, "$lt": end_d}
             except: pass
     return query
 
@@ -85,8 +107,8 @@ async def get_dashboard_filters(db=Depends(get_db)):
     }
 
 @router.get("/stats")
-async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
-    query = get_filter_query(product, name, year)
+async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
+    query = get_filter_query(product, name, year, start_date, end_date)
     pipeline = [
         {"$match": query}, 
         {"$group": {
@@ -224,25 +246,28 @@ async def get_dashboard_history(
     year: Optional[str] = None, 
     product: Optional[List[str]] = Query(None), 
     name: Optional[List[str]] = Query(None), 
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db=Depends(get_db), 
     current_user=Depends(get_current_user)
 ):
-    query = get_filter_query(product, name, year)
+    query = get_filter_query(product, name, year, start_date, end_date)
     now = datetime.now()
     
-    # Apply Time Filtering based on view_type
-    if view_type == "daily":
-        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        query["timestamp"] = {"$gte": start_date}
-    elif view_type == "weekly":
-        start_date = now - timedelta(days=now.weekday())
-        query["timestamp"] = {"$gte": start_date}
-    elif view_type == "monthly":
-        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        query["timestamp"] = {"$gte": start_date}
-    elif view_type == "yearly":
-        start_date = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        query["timestamp"] = {"$gte": start_date}
+    # Apply Time Filtering based on view_type only if custom date filter is not present
+    if not start_date and not end_date:
+        if view_type == "daily":
+            start_d = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            query["timestamp"] = {"$gte": start_d}
+        elif view_type == "weekly":
+            start_d = now - timedelta(days=now.weekday())
+            query["timestamp"] = {"$gte": start_d}
+        elif view_type == "monthly":
+            start_d = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            query["timestamp"] = {"$gte": start_d}
+        elif view_type == "yearly":
+            start_d = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            query["timestamp"] = {"$gte": start_d}
 
     # Group by PRODUCT as requested by the user
     pipeline = [
@@ -289,8 +314,8 @@ async def get_dashboard_activity(db=Depends(get_db), current_user=Depends(get_cu
     return result
 
 @router.get("/top-courses")
-async def get_top_courses(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
-    query = get_filter_query(product, name, year)
+async def get_top_courses(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
+    query = get_filter_query(product, name, year, start_date, end_date)
     pipeline = [
         {"$match": query},
         {"$unwind": "$invoice_items"},
@@ -331,11 +356,13 @@ async def get_top_customers(
     name: Optional[List[str]] = Query(None),
     year: Optional[str] = None,
     min_visits: Optional[int] = Query(None),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db=Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     """Get top customers with dynamic filtering by product, name, and year."""
-    query = get_filter_query(product, name, year)
+    query = get_filter_query(product, name, year, start_date, end_date)
     
     # Aggregate transactions to get counts and revenue per customer within the filtered set.
     # We normalize the phone by trimming whitespace and use upper-cased name as
