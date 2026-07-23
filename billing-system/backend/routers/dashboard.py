@@ -109,16 +109,89 @@ async def get_dashboard_filters(db=Depends(get_db)):
 @router.get("/stats")
 async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: Optional[List[str]] = Query(None), year: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None, db=Depends(get_db), current_user=Depends(get_current_user)):
     query = get_filter_query(product, name, year, start_date, end_date)
-    pipeline = [
-        {"$match": query}, 
-        {"$group": {
-            "_id": None, 
-            "total_revenue": {"$sum": "$total_amount"}, 
-            "total_collected": {"$sum": "$paid_amount"},
-            "total_balance": {"$sum": "$balance"},
-            "count": {"$sum": 1}
-        }}
-    ]
+    
+    # Check if any filter is active
+    is_filtered = bool(product or name or (year and year != "All") or start_date or end_date)
+    
+    kpi_query = dict(query)
+    if not is_filtered:
+        # Default to current month in IST (+05:30)
+        now_utc = datetime.utcnow()
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        ist_year = now_ist.year
+        ist_month = now_ist.month
+        
+        # Calculate boundaries of current month in IST, translated back to UTC
+        start_ist = datetime(ist_year, ist_month, 1, 0, 0, 0)
+        utc_start = start_ist - timedelta(hours=5, minutes=30)
+        
+        if ist_month == 12:
+            next_ist = datetime(ist_year + 1, 1, 1, 0, 0, 0)
+        else:
+            next_ist = datetime(ist_year, ist_month + 1, 1, 0, 0, 0)
+        utc_next = next_ist - timedelta(hours=5, minutes=30)
+        
+        kpi_query["timestamp"] = {"$gte": utc_start, "$lt": utc_next}
+
+    clean_products = []
+    if product:
+        clean_products = [p for p in product if p and p != "All" and p != "Products"]
+
+    if clean_products:
+        pipeline = [
+            {"$match": kpi_query},
+            {"$unwind": "$invoice_items"},
+            {"$match": {"invoice_items.name": {"$in": clean_products}}},
+            {"$group": {
+                "_id": "$_id",
+                "tx_revenue": {"$sum": "$invoice_items.total"},
+                "total_amount": {"$first": "$total_amount"},
+                "paid_amount": {"$first": "$paid_amount"},
+                "balance": {"$first": "$balance"}
+            }},
+            {"$project": {
+                "tx_revenue": 1,
+                "tx_collected": {
+                    "$cond": [
+                        {"$gt": ["$total_amount", 0]},
+                        {"$multiply": [
+                            "$tx_revenue",
+                            {"$divide": [{"$ifNull": ["$paid_amount", 0]}, "$total_amount"]}
+                        ]},
+                        0
+                    ]
+                },
+                "tx_balance": {
+                    "$cond": [
+                        {"$gt": ["$total_amount", 0]},
+                        {"$multiply": [
+                            "$tx_revenue",
+                            {"$divide": [{"$ifNull": ["$balance", 0]}, "$total_amount"]}
+                        ]},
+                        0
+                    ]
+                }
+            }},
+            {"$group": {
+                "_id": None,
+                "total_revenue": {"$sum": "$tx_revenue"},
+                "total_collected": {"$sum": "$tx_collected"},
+                "total_balance": {"$sum": "$tx_balance"},
+                "count": {"$sum": 1}
+            }}
+        ]
+    else:
+        pipeline = [
+            {"$match": kpi_query}, 
+            {"$group": {
+                "_id": None, 
+                "total_revenue": {"$sum": "$total_amount"}, 
+                "total_collected": {"$sum": "$paid_amount"},
+                "total_balance": {"$sum": "$balance"},
+                "count": {"$sum": 1}
+            }}
+        ]
+        
     result_cursor = db.transactions.aggregate(pipeline)
     result = await result_cursor.to_list(length=1)
     stats = result[0] if result else {"total_revenue": 0, "total_collected": 0, "total_balance": 0, "count": 0}
@@ -127,25 +200,48 @@ async def get_dashboard_stats(product: Optional[List[str]] = Query(None), name: 
     breakdown_match = dict(query)
     breakdown_match["timestamp"] = {"$ne": None}
     
-    breakdown_pipeline = [
-        {"$match": breakdown_match},
-        {"$project": {
-            "year": {"$year": {"date": "$timestamp", "timezone": "+05:30"}},
-            "month": {"$month": {"date": "$timestamp", "timezone": "+05:30"}},
-            "day": {"$dayOfMonth": {"date": "$timestamp", "timezone": "+05:30"}},
-            "week": {"$isoWeek": {"date": "$timestamp", "timezone": "+05:30"}},
-            "total_amount": 1
-        }},
-        {"$group": {
-            "_id": {
-                "year": "$year", 
-                "month": "$month", 
-                "day": "$day",
-                "week": "$week"
-            },
-            "revenue": {"$sum": "$total_amount"}
-        }}
-    ]
+    if clean_products:
+        breakdown_pipeline = [
+            {"$match": breakdown_match},
+            {"$unwind": "$invoice_items"},
+            {"$match": {"invoice_items.name": {"$in": clean_products}}},
+            {"$project": {
+                "year": {"$year": {"date": "$timestamp", "timezone": "+05:30"}},
+                "month": {"$month": {"date": "$timestamp", "timezone": "+05:30"}},
+                "day": {"$dayOfMonth": {"date": "$timestamp", "timezone": "+05:30"}},
+                "week": {"$isoWeek": {"date": "$timestamp", "timezone": "+05:30"}},
+                "item_total": "$invoice_items.total"
+            }},
+            {"$group": {
+                "_id": {
+                    "year": "$year", 
+                    "month": "$month", 
+                    "day": "$day",
+                    "week": "$week"
+                },
+                "revenue": {"$sum": "$item_total"}
+            }}
+        ]
+    else:
+        breakdown_pipeline = [
+            {"$match": breakdown_match},
+            {"$project": {
+                "year": {"$year": {"date": "$timestamp", "timezone": "+05:30"}},
+                "month": {"$month": {"date": "$timestamp", "timezone": "+05:30"}},
+                "day": {"$dayOfMonth": {"date": "$timestamp", "timezone": "+05:30"}},
+                "week": {"$isoWeek": {"date": "$timestamp", "timezone": "+05:30"}},
+                "total_amount": 1
+            }},
+            {"$group": {
+                "_id": {
+                    "year": "$year", 
+                    "month": "$month", 
+                    "day": "$day",
+                    "week": "$week"
+                },
+                "revenue": {"$sum": "$total_amount"}
+            }}
+        ]
     breakdown_cursor = db.transactions.aggregate(breakdown_pipeline)
     breakdown_res = await breakdown_cursor.to_list(length=1000)
 
@@ -252,52 +348,150 @@ async def get_dashboard_history(
     current_user=Depends(get_current_user)
 ):
     query = get_filter_query(product, name, year, start_date, end_date)
-    now = datetime.now()
     
-    # Apply Time Filtering based on view_type only if custom date filter is not present
-    if not start_date and not end_date:
+    # Use current time in IST (+05:30)
+    now_utc = datetime.utcnow()
+    now = now_utc + timedelta(hours=5, minutes=30)
+    
+    # Apply Time Filtering based on view_type only if custom date filter and Financial Year filter are not present
+    if not start_date and not end_date and (not year or year == "All"):
         if view_type == "daily":
             start_d = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            query["timestamp"] = {"$gte": start_d}
+            start_d_utc = start_d - timedelta(hours=5, minutes=30)
+            query["timestamp"] = {"$gte": start_d_utc}
         elif view_type == "weekly":
             start_d = now - timedelta(days=now.weekday())
-            query["timestamp"] = {"$gte": start_d}
+            start_d = start_d.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_d_utc = start_d - timedelta(hours=5, minutes=30)
+            query["timestamp"] = {"$gte": start_d_utc}
         elif view_type == "monthly":
             start_d = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            query["timestamp"] = {"$gte": start_d}
+            start_d_utc = start_d - timedelta(hours=5, minutes=30)
+            query["timestamp"] = {"$gte": start_d_utc}
         elif view_type == "yearly":
             start_d = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            query["timestamp"] = {"$gte": start_d}
+            start_d_utc = start_d - timedelta(hours=5, minutes=30)
+            query["timestamp"] = {"$gte": start_d_utc}
 
-    # Group by PRODUCT as requested by the user
     pipeline = [
         {"$match": query},
         {"$unwind": "$invoice_items"},
     ]
     
-    # If filtering by specific products, ensure we only aggregate those after unwinding
     if product:
         clean_products = [p for p in product if p and p != "All"]
         if clean_products:
             pipeline.append({"$match": {"invoice_items.name": {"$in": clean_products}}})
 
-    pipeline.extend([
-        {"$group": {
-            "_id": "$invoice_items.name",
-            "value": {"$sum": "$invoice_items.total"}
-        }},
-        {"$sort": {"value": -1}}, # Show highest earners first
-        {"$limit": 8} # Keep it neat
-    ])
-    
+    # Project date intervals in IST timezone
+    pipeline.append({
+        "$project": {
+            "year": {"$year": {"date": "$timestamp", "timezone": "+05:30"}},
+            "month": {"$month": {"date": "$timestamp", "timezone": "+05:30"}},
+            "day": {"$dayOfMonth": {"date": "$timestamp", "timezone": "+05:30"}},
+            "week": {"$isoWeek": {"date": "$timestamp", "timezone": "+05:30"}},
+            "item_total": "$invoice_items.total"
+        }
+    })
+
+    # Group dynamically based on view_type
+    if view_type == "daily":
+        pipeline.extend([
+            {"$group": {
+                "_id": {
+                    "year": "$year",
+                    "month": "$month",
+                    "day": "$day"
+                },
+                "value": {"$sum": "$item_total"}
+            }},
+            {"$sort": {"_id.year": -1, "_id.month": -1, "_id.day": -1}}
+        ])
+    elif view_type == "weekly":
+        pipeline.extend([
+            {"$group": {
+                "_id": {
+                    "year": "$year",
+                    "week": "$week"
+                },
+                "value": {"$sum": "$item_total"}
+            }},
+            {"$sort": {"_id.year": -1, "_id.week": -1}}
+        ])
+    elif view_type == "monthly":
+        pipeline.extend([
+            {"$group": {
+                "_id": {
+                    "year": "$year",
+                    "month": "$month"
+                },
+                "value": {"$sum": "$item_total"}
+            }},
+            {"$sort": {"_id.year": -1, "_id.month": -1}}
+        ])
+    elif view_type == "yearly":
+        pipeline.extend([
+            {"$group": {
+                "_id": "$year",
+                "value": {"$sum": "$item_total"}
+            }},
+            {"$sort": {"_id": -1}}
+        ])
+
+    pipeline.append({"$limit": 8})
+
     cursor = db.transactions.aggregate(pipeline)
     results = await cursor.to_list(length=8)
-    
-    return [{"day": str(r["_id"] or "Unknown").title(), "value": r["value"]} for r in results]
+
+    MONTH_NAMES = {
+        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
+        5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
+        9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
+    }
+
+    formatted_results = []
+    for r in results:
+        g = r["_id"]
+        val = r["value"]
+        if view_type == "daily":
+            y = g.get("year")
+            m = g.get("month")
+            d = g.get("day")
+            day_label = f"{d:02d} {MONTH_NAMES[m]} {y}" if (y and m and d) else "Unknown"
+        elif view_type == "weekly":
+            y = g.get("year")
+            w = g.get("week")
+            day_label = f"W{w}, {y}" if (y and w) else "Unknown"
+        elif view_type == "monthly":
+            y = g.get("year")
+            m = g.get("month")
+            day_label = f"{MONTH_NAMES[m]} {y}" if (y and m) else "Unknown"
+        elif view_type == "yearly":
+            day_label = str(g) if g else "Unknown"
+        else:
+            day_label = str(g or "Unknown")
+
+        formatted_results.append({
+            "day": day_label,
+            "value": val
+        })
+
+    # Return chronological oldest to newest (by reversing descending order)
+    formatted_results.reverse()
+    return formatted_results
 
 @router.get("/activity")
-async def get_dashboard_activity(db=Depends(get_db), current_user=Depends(get_current_user)):
-    cursor = db.transactions.find().sort("timestamp", -1).limit(6)
+async def get_dashboard_activity(
+    product: Optional[List[str]] = Query(None),
+    name: Optional[List[str]] = Query(None),
+    year: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    query = get_filter_query(product, name, year, start_date, end_date)
+    cursor = db.transactions.find(query).sort("timestamp", -1).limit(6)
     activities = await cursor.to_list(length=6)
     result = []
     for act in activities:
@@ -368,30 +562,66 @@ async def get_top_customers(
     # We normalize the phone by trimming whitespace and use upper-cased name as
     # a fallback key when the phone is null/empty so that the same real-world
     # customer is never split across multiple buckets.
-    pipeline = [
-        {"$match": query},
-        # Build a normalised grouping key
-        {"$addFields": {
-            "_norm_phone": {"$trim": {"input": {"$ifNull": ["$phone", ""]}}},
-            "_norm_name": {"$toUpper": {"$trim": {"input": {"$ifNull": ["$name", "Unknown"]}}}}
-        }},
-        {"$addFields": {
-            "_group_key": {
-                "$cond": {
-                    "if": {"$eq": ["$_norm_phone", ""]},
-                    "then": "$_norm_name",   # fallback to name when phone is missing
-                    "else": "$_norm_phone"
+    clean_products = []
+    if product:
+        clean_products = [p for p in product if p and p != "All" and p != "Products"]
+
+    if clean_products:
+        pipeline = [
+            {"$match": query},
+            {"$unwind": "$invoice_items"},
+            {"$match": {"invoice_items.name": {"$in": clean_products}}},
+            {"$group": {
+                "_id": "$_id",
+                "phone": {"$first": "$phone"},
+                "name": {"$first": "$name"},
+                "tx_revenue": {"$sum": "$invoice_items.total"}
+            }},
+            {"$addFields": {
+                "_norm_phone": {"$trim": {"input": {"$ifNull": ["$phone", ""]}}},
+                "_norm_name": {"$toUpper": {"$trim": {"input": {"$ifNull": ["$name", "Unknown"]}}}}
+            }},
+            {"$addFields": {
+                "_group_key": {
+                    "$cond": {
+                        "if": {"$eq": ["$_norm_phone", ""]},
+                        "then": "$_norm_name",
+                        "else": "$_norm_phone"
+                    }
                 }
-            }
-        }},
-        {"$group": {
-            "_id": "$_group_key",
-            "name": {"$first": "$name"},
-            "phone": {"$first": "$phone"},
-            "count": {"$sum": 1},
-            "revenue": {"$sum": "$total_amount"}
-        }}
-    ]
+            }},
+            {"$group": {
+                "_id": "$_group_key",
+                "name": {"$first": "$name"},
+                "phone": {"$first": "$phone"},
+                "count": {"$sum": 1},
+                "revenue": {"$sum": "$tx_revenue"}
+            }}
+        ]
+    else:
+        pipeline = [
+            {"$match": query},
+            {"$addFields": {
+                "_norm_phone": {"$trim": {"input": {"$ifNull": ["$phone", ""]}}},
+                "_norm_name": {"$toUpper": {"$trim": {"input": {"$ifNull": ["$name", "Unknown"]}}}}
+            }},
+            {"$addFields": {
+                "_group_key": {
+                    "$cond": {
+                        "if": {"$eq": ["$_norm_phone", ""]},
+                        "then": "$_norm_name",
+                        "else": "$_norm_phone"
+                    }
+                }
+            }},
+            {"$group": {
+                "_id": "$_group_key",
+                "name": {"$first": "$name"},
+                "phone": {"$first": "$phone"},
+                "count": {"$sum": 1},
+                "revenue": {"$sum": "$total_amount"}
+            }}
+        ]
     
     # Apply exact visit-count filter AFTER grouping
     if min_visits is not None and min_visits > 0:

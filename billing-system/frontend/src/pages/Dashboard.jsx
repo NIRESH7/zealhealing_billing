@@ -95,6 +95,69 @@ const MultiSelect = ({ icon: Icon, value, options, onChange, label }) => {
   );
 };
 
+// --- Minimalist Single-Select ---
+const SingleSelect = ({ icon: Icon, value, options, onChange, label, width = 'w-48', align = 'left', customTriggerClass }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(opt => opt.value === value);
+  const displayLabel = selectedOption ? selectedOption.label : label;
+
+  const triggerClass = customTriggerClass || 
+    "flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 transition-all cursor-pointer shadow-sm";
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={triggerClass}
+      >
+        {Icon && <Icon className="w-3.5 h-3.5 text-emerald-500" />}
+        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
+          {displayLabel}
+        </span>
+        <ChevronDown className={`w-3 h-3 text-slate-300 ml-1 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute top-full ${align === 'right' ? 'right-0' : 'left-0'} mt-2 ${width} bg-white border border-slate-200 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95`}>
+          <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+            {options.length === 0 && <div className="text-[10px] text-slate-400 p-4 text-center font-bold">No results</div>}
+            {options.map((opt, idx) => {
+              const isSelected = opt.value === value;
+              return (
+                <div
+                  key={`${opt.value}-${idx}`}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={`flex items-center justify-between p-1.5 rounded-md cursor-pointer transition-colors ${
+                    isSelected ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-[11px] truncate pr-2 font-bold">
+                    {opt.label}
+                  </span>
+                  {isSelected && <Check className="w-3 h-3 text-emerald-600" />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState([]);
@@ -157,7 +220,7 @@ export default function Dashboard() {
       const [statsRes, historyRes, activityRes, coursesRes, customerRes, filtersRes] = await Promise.all([
         api.get('/dashboard/stats', { params }),
         api.get('/dashboard/history', { params }),
-        api.get('/dashboard/activity'),
+        api.get('/dashboard/activity', { params }),
         api.get('/dashboard/top-courses', { params }),
         api.get('/dashboard/top-customers', { params }),
         api.get('/dashboard/filters')
@@ -176,12 +239,9 @@ export default function Dashboard() {
   }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, dateFilterType, selectedMonth, selectedWeek, customStartDate, customEndDate]);
 
   useEffect(() => {
-    fetchData(true);
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (!loading) fetchData();
-  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, dateFilterType, selectedMonth, selectedWeek, customStartDate, customEndDate, fetchData, loading]);
+    const isInitial = stats === null;
+    fetchData(isInitial);
+  }, [selectedProducts, selectedCustomers, selectedYear, viewType, minVisits, dateFilterType, selectedMonth, selectedWeek, customStartDate, customEndDate, fetchData]);
 
   const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
   const currentMonthRevenue = stats?.month_wise_revenue?.find(m => m.month === currentMonthName || m.month.startsWith(currentMonthName))?.revenue || 0;
@@ -191,15 +251,30 @@ export default function Dashboard() {
   const kpiCards = [
     { 
       label: isDateFiltered ? 'Revenue (Filtered Period)' : 'Revenue (This Month)', 
-      value: `₹${(isDateFiltered ? (stats?.total_revenue || 0) : currentMonthRevenue).toLocaleString('en-IN')}`, 
+      value: `₹${(stats?.total_revenue || 0).toLocaleString('en-IN')}`, 
       icon: TrendingUp, 
       color: 'text-emerald-600',
       action: () => setShowRevenueBreakdown(!showRevenueBreakdown),
       actionLabel: showRevenueBreakdown ? 'Hide Details' : 'View Details'
     },
-    { label: 'Collected', value: `₹${stats?.total_collected?.toLocaleString('en-IN') || '0'}`, icon: CheckCircle, color: 'text-emerald-600' },
-    { label: 'Balance', value: `₹${stats?.total_balance?.toLocaleString('en-IN') || '0'}`, icon: Activity, color: 'text-emerald-600' },
-    { label: 'Total Bills', value: stats?.verified_transactions || '0', icon: Layout, color: 'text-emerald-600' },
+    { 
+      label: isDateFiltered ? 'Collected (Filtered Period)' : 'Collected (This Month)', 
+      value: `₹${(stats?.total_collected || 0).toLocaleString('en-IN')}`, 
+      icon: CheckCircle, 
+      color: 'text-emerald-600' 
+    },
+    { 
+      label: isDateFiltered ? 'Balance (Filtered Period)' : 'Balance (This Month)', 
+      value: `₹${(stats?.total_balance || 0).toLocaleString('en-IN')}`, 
+      icon: Activity, 
+      color: 'text-emerald-600' 
+    },
+    { 
+      label: isDateFiltered ? 'Total Bills (Filtered Period)' : 'Total Bills (This Month)', 
+      value: stats?.verified_transactions || '0', 
+      icon: Layout, 
+      color: 'text-emerald-600' 
+    },
   ];
 
   const getWeeksOptions = () => {
@@ -230,6 +305,31 @@ export default function Dashboard() {
     return options;
   };
 
+  const yearOptions = [
+    { value: 'All', label: 'All FY' },
+    ...(filters.years || []).map(y => ({ value: y, label: y.includes('-') ? `FY ${y}` : y }))
+  ];
+
+  const dateFilterTypeOptions = [
+    { value: 'all', label: 'All Time' },
+    { value: 'month', label: 'Month-wise' },
+    { value: 'week', label: 'Weekly' },
+    { value: 'custom', label: 'Custom Range' }
+  ];
+
+  const weekOptions = [
+    { value: '', label: 'Select Week' },
+    ...getWeeksOptions()
+  ];
+
+  const visitOptions = [
+    { value: 0, label: 'ALL VISITS' },
+    ...Array.from({ length: filters.max_visits || 0 }, (_, i) => i + 1).map(num => ({
+      value: num,
+      label: `${num} ${num === 1 ? 'VISIT' : 'VISITS'}`
+    }))
+  ];
+
   if (loading) return (
     <div className="h-[70vh] flex flex-col items-center justify-center text-slate-300">
       <RefreshCw className="w-8 h-8 animate-spin mb-4 text-emerald-500" />
@@ -252,34 +352,30 @@ export default function Dashboard() {
           <MultiSelect icon={UserIcon} label="All Customers" options={filters.customers} value={selectedCustomers} onChange={setSelectedCustomers} />
           
           {dateFilterType === 'all' && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
-              <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-              <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="text-[11px] font-bold text-slate-600 bg-transparent outline-none appearance-none pr-1 cursor-pointer">
-                <option value="All">All FY</option>
-                {filters.years.map(y => <option key={y} value={y}>{y.includes('-') ? `FY ${y}` : y}</option>)}
-              </select>
-            </div>
+            <SingleSelect
+              icon={Calendar}
+              value={selectedYear}
+              options={yearOptions}
+              onChange={setSelectedYear}
+              label="All FY"
+              width="w-40"
+            />
           )}
 
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
-            <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-            <select 
-              value={dateFilterType} 
-              onChange={(e) => {
-                setDateFilterType(e.target.value);
-                setSelectedMonth('');
-                setSelectedWeek('');
-                setCustomStartDate('');
-                setCustomEndDate('');
-              }} 
-              className="text-[11px] font-bold text-slate-600 bg-transparent outline-none appearance-none pr-1 cursor-pointer"
-            >
-              <option value="all">All Time</option>
-              <option value="month">Month-wise</option>
-              <option value="week">Weekly</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
+          <SingleSelect
+            icon={Calendar}
+            value={dateFilterType}
+            options={dateFilterTypeOptions}
+            onChange={(val) => {
+              setDateFilterType(val);
+              setSelectedMonth('');
+              setSelectedWeek('');
+              setCustomStartDate('');
+              setCustomEndDate('');
+            }}
+            label="All Time"
+            width="w-40"
+          />
 
           {dateFilterType === 'month' && (
             <input 
@@ -291,16 +387,13 @@ export default function Dashboard() {
           )}
 
           {dateFilterType === 'week' && (
-            <select 
-              value={selectedWeek} 
-              onChange={(e) => setSelectedWeek(e.target.value)}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm outline-none focus:border-emerald-300 transition-all cursor-pointer"
-            >
-              <option value="">Select Week</option>
-              {getWeeksOptions().map(w => (
-                <option key={w.value} value={w.value}>{w.label}</option>
-              ))}
-            </select>
+            <SingleSelect
+              value={selectedWeek}
+              options={weekOptions}
+              onChange={setSelectedWeek}
+              label="Select Week"
+              width="w-64"
+            />
           )}
 
           {dateFilterType === 'custom' && (
@@ -534,16 +627,15 @@ export default function Dashboard() {
         <div className="bg-white border border-slate-100 rounded-xl p-8 shadow-sm h-full ring-1 ring-slate-900/5">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Customer Frequency</h3>
-            <select
+            <SingleSelect
               value={minVisits}
-              onChange={(e) => setMinVisits(Number(e.target.value))}
-              className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded outline-none border-none cursor-pointer hover:bg-emerald-100 transition-colors"
-            >
-              <option value="0">ALL VISITS</option>
-              {Array.from({ length: filters.max_visits || 0 }, (_, i) => i + 1).map(num => (
-                <option key={num} value={num}>{num} {num === 1 ? 'VISIT' : 'VISITS'}</option>
-              ))}
-            </select>
+              options={visitOptions}
+              onChange={setMinVisits}
+              label="ALL VISITS"
+              width="w-32"
+              align="right"
+              customTriggerClass="flex items-center gap-1 px-2.5 py-1 text-[10px] font-black text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded cursor-pointer transition-colors"
+            />
           </div>
           <div className="space-y-6">
             {topCustomers.map((customer, i) => (
