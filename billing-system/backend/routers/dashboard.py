@@ -491,7 +491,7 @@ async def get_dashboard_activity(
     current_user=Depends(get_current_user)
 ):
     query = get_filter_query(product, name, year, start_date, end_date)
-    cursor = db.transactions.find(query).sort("timestamp", -1).limit(6)
+    cursor = db.transactions.find(query).sort("invoice_number", -1).limit(6)
     activities = await cursor.to_list(length=6)
     result = []
     for act in activities:

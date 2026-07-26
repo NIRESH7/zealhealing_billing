@@ -668,18 +668,20 @@ async def get_transactions(skip: int = 0, limit: int = 50, status: str = None, s
         query["timestamp"] = {"$lte": now_limit}
             
     # Determine sorting field and direction
-    sort_field = "_id"
-    if sort_by in ("date", "timestamp"):
-        sort_field = "timestamp"
-    elif sort_by == "amount":
-        sort_field = "total_amount"
-    elif sort_by == "bill_no":
-        sort_field = "invoice_number"
-    elif sort_by == "customer":
-        sort_field = "name"
-        
     direction = -1 if sort_order == "desc" else 1
-    cursor = db.transactions.find(query).sort([(sort_field, direction)]).skip(skip).limit(limit)
+    sort_keys = []
+    if sort_by in ("date", "timestamp"):
+        sort_keys = [("timestamp", direction), ("invoice_number", direction)]
+    elif sort_by == "amount":
+        sort_keys = [("total_amount", direction)]
+    elif sort_by == "bill_no":
+        sort_keys = [("invoice_number", direction)]
+    elif sort_by == "customer":
+        sort_keys = [("name", direction)]
+    else:
+        sort_keys = [("_id", direction)]
+        
+    cursor = db.transactions.find(query).sort(sort_keys).skip(skip).limit(limit)
     transactions = await cursor.to_list(length=limit)
     
     serialized = []
@@ -1105,7 +1107,7 @@ async def export_analytics(payload: dict, db=Depends(get_db), current_user=Depen
         else:
             query["$or"] = product_patterns
     
-    cursor = db.transactions.find(query).sort([("timestamp", -1)])
+    cursor = db.transactions.find(query).sort([("timestamp", -1), ("invoice_number", -1)])
     transactions = await cursor.to_list(length=100000)
     
     if not transactions or len(transactions) == 0:
