@@ -2333,7 +2333,7 @@ export default function Transactions() {
 
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState('All');
-  const [sortKey, setSortKey] = useState('date_desc');
+  const [sortKey, setSortKey] = useState('bill_desc');
 
   const handleHeaderClick = (column) => {
     let nextKey;
